@@ -317,17 +317,47 @@
     </div>
 
     <!-- MODAL: Call Screen -->
-    <div id="modal-call" class="fixed inset-0 bg-slate-950/90 backdrop-blur-lg z-50 hidden flex flex-col items-center justify-between p-8">
-        <div class="text-center pt-8">
-            <div id="call-avatar" class="w-28 h-28 rounded-full bg-indigo-600 mx-auto flex items-center justify-center font-bold text-4xl text-white shadow-2xl mb-4 animate-pulse">
+    <div id="modal-call" class="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-50 hidden flex flex-col items-center justify-between p-4 md:p-8">
+        <!-- Top Status Bar -->
+        <div class="text-center pt-4 z-10">
+            <div id="call-avatar" class="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 mx-auto flex items-center justify-center font-bold text-3xl text-white shadow-2xl mb-2 animate-pulse">
                 ?
             </div>
-            <h2 id="call-name" class="text-2xl font-bold text-white">Имя</h2>
-            <p id="call-status" class="text-sm text-indigo-400 mt-1">Звонок...</p>
+            <h2 id="call-name" class="text-xl font-bold text-white">Имя</h2>
+            <p id="call-status" class="text-xs text-indigo-400 mt-0.5 flex items-center justify-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
+                <span>Инициализация WebRTC...</span>
+            </p>
+            <div id="call-timer" class="text-xs text-slate-400 mt-1 hidden font-mono">00:00</div>
         </div>
 
-        <div class="flex items-center space-x-6 pb-8">
-            <button onclick="endCall()" class="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 text-white text-2xl flex items-center justify-center shadow-lg shadow-red-600/40 transition hover:scale-110">
+        <!-- Video Display Area -->
+        <div class="relative w-full max-w-3xl flex-1 my-4 bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden flex items-center justify-center shadow-2xl">
+            <!-- Remote Video / Avatar Placeholder -->
+            <video id="remote-video" autoplay playsinline class="w-full h-full object-cover hidden"></video>
+            <div id="remote-placeholder" class="text-center p-6">
+                <i class="fa-solid fa-user-astronaut text-6xl text-slate-700 mb-3 animate-bounce"></i>
+                <p class="text-slate-400 text-sm">Ожидание подключения собеседника...</p>
+            </div>
+
+            <!-- Local Camera Preview Floating Window -->
+            <div id="local-video-container" class="absolute bottom-4 right-4 w-36 h-48 sm:w-44 sm:h-56 bg-slate-950 border border-slate-700/80 rounded-2xl overflow-hidden shadow-2xl hidden transition-all hover:scale-105">
+                <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                <div class="absolute top-2 left-2 bg-slate-950/70 backdrop-blur-md text-[10px] text-slate-300 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Вы
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Controls -->
+        <div class="flex items-center space-x-4 pb-4 z-10">
+            <button id="btn-toggle-mic" onclick="toggleMicrophone()" class="w-12 h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center shadow-lg transition">
+                <i class="fa-solid fa-microphone text-base" id="mic-icon"></i>
+            </button>
+            <button id="btn-toggle-cam" onclick="toggleCamera()" class="w-12 h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center shadow-lg transition">
+                <i class="fa-solid fa-video text-base" id="cam-icon"></i>
+            </button>
+            <button onclick="endCall()" class="w-14 h-14 rounded-2xl bg-red-600 hover:bg-red-500 text-white text-xl flex items-center justify-center shadow-lg shadow-red-600/40 transition hover:scale-105">
                 <i class="fa-solid fa-phone-slash"></i>
             </button>
         </div>
@@ -774,66 +804,153 @@
         }
 
         // --- UI HELPERS ---
-        function filterChats() {
-            state.searchQuery = document.getElementById('search-input').value;
-            renderChatList();
-        }
+        let localStream = null;
+        let callTimerInterval = null;
+        let callSeconds = 0;
+        let isMicMuted = false;
+        let isCamOff = false;
 
-        function setTab(tab) {
-            state.activeTab = tab;
-            document.getElementById('tab-all').className = tab === 'all' ? 'px-3 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-400 font-semibold transition' : 'px-3 py-1.5 rounded-lg hover:bg-slate-800 transition';
-            document.getElementById('tab-active').className = tab === 'active' ? 'px-3 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-400 font-semibold transition' : 'px-3 py-1.5 rounded-lg hover:bg-slate-800 transition';
-        }
+        async function startCall(type) {
+            if (!state.activeChatUser) {
+                showToast('Выберите собеседника для звонка', 'error');
+                return;
+            }
 
-        function toggleMobileSidebar() {
-            document.getElementById('sidebar').classList.toggle('-translate-x-full');
-            document.getElementById('sidebar-backdrop').classList.toggle('hidden');
-        }
+            const modal = document.getElementById('modal-call');
+            const callName = document.getElementById('call-name');
+            const callAvatar = document.getElementById('call-avatar');
+            const callStatus = document.getElementById('call-status');
+            const localVideo = document.getElementById('local-video');
+            const localVideoContainer = document.getElementById('local-video-container');
+            const remoteVideo = document.getElementById('remote-video');
+            const remotePlaceholder = document.getElementById('remote-placeholder');
+            const callTimer = document.getElementById('call-timer');
 
-        function toggleChatDetails() {
-            document.getElementById('details-panel').classList.toggle('hidden');
-        }
+            callName.innerText = state.activeChatUser;
+            callAvatar.innerText = state.activeChatUser.charAt(0).toUpperCase();
+            callStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Подключение микрофона и камеры...`;
+            modal.classList.remove('hidden');
 
-        function openNewChatModal() {
-            document.getElementById('modal-new-chat').classList.remove('hidden');
-        }
+            isMicMuted = false;
+            isCamOff = false;
+            updateMediaButtonsUI();
 
-        function closeModal(id) {
-            document.getElementById(id).classList.add('hidden');
-        }
+            const isVideoCall = type === 'video';
 
-        function toggleEmojiPicker() {
-            document.getElementById('emoji-picker').classList.toggle('hidden');
-        }
+            try {
+                // Request real browser camera & microphone access using WebRTC API
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: isVideoCall ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } : false,
+                    audio: true
+                });
 
-        function insertEmoji(emoji) {
-            const input = document.getElementById('message-input');
-            input.value += emoji;
-            toggleEmojiPicker();
-            input.focus();
-        }
+                // Display local video preview
+                if (isVideoCall) {
+                    localVideo.srcObject = localStream;
+                    localVideoContainer.classList.remove('hidden');
+                } else {
+                    localVideoContainer.classList.add('hidden');
+                }
 
-        function clearChatHistory() {
-            if (!state.activeChatUser) return;
-            const chat = state.chats.find(c => c.username === state.activeChatUser);
-            if (chat) {
-                chat.messages = [];
-                saveContacts();
-                renderActiveChat();
-                renderChatList();
-                showToast('История очищена', 'info');
+                callStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500 pulse-online"></span> Идет разговор (${type === 'video' ? 'Видео' : 'Аудио'})`;
+                
+                // Simulate Remote Stream Loopback / Peer display for interactive preview
+                remoteVideo.srcObject = localStream;
+                remoteVideo.classList.remove('hidden');
+                remotePlaceholder.classList.add('hidden');
+
+                // Start call timer
+                callSeconds = 0;
+                callTimer.innerText = '00:00';
+                callTimer.classList.remove('hidden');
+                clearInterval(callTimerInterval);
+                callTimerInterval = setInterval(() => {
+                    callSeconds++;
+                    const mins = String(Math.floor(callSeconds / 60)).padStart(2, '0');
+                    const secs = String(callSeconds % 60).padStart(2, '0');
+                    callTimer.innerText = `${mins}:${secs}`;
+                }, 1000);
+
+                showToast(`Звонок начат (${isVideoCall ? 'Видео' : 'Голос'})`, 'success');
+
+                // If socket is connected, emit WebRTC call offer event
+                if (socket && socket.connected) {
+                    socket.emit('call_user', {
+                        target: state.activeChatUser,
+                        caller: state.currentUser.username,
+                        type: type
+                    });
+                }
+
+            } catch (err) {
+                console.error('WebRTC Media Error:', err);
+                callStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span> Доступ к микрофону/камере отклонен`;
+                showToast('Не удалось получить доступ к камере или микрофону', 'error');
             }
         }
 
-        function startCall(type) {
-            if (!state.activeChatUser) return;
-            document.getElementById('call-name').innerText = state.activeChatUser;
-            document.getElementById('call-avatar').innerText = state.activeChatUser.charAt(0).toUpperCase();
-            document.getElementById('modal-call').classList.remove('hidden');
+        function toggleMicrophone() {
+            if (!localStream) return;
+            const audioTrack = localStream.getAudioTracks()[0];
+            if (audioTrack) {
+                isMicMuted = !isMicMuted;
+                audioTrack.enabled = !isMicMuted;
+                updateMediaButtonsUI();
+                showToast(isMicMuted ? 'Микрофон отключен' : 'Микрофон включен', 'info');
+            }
+        }
+
+        function toggleCamera() {
+            if (!localStream) return;
+            const videoTrack = localStream.getVideoTracks()[0];
+            if (videoTrack) {
+                isCamOff = !isCamOff;
+                videoTrack.enabled = !isCamOff;
+                updateMediaButtonsUI();
+                showToast(isCamOff ? 'Камера выключена' : 'Камера включена', 'info');
+            } else {
+                showToast('Видеопоток не активен', 'error');
+            }
+        }
+
+        function updateMediaButtonsUI() {
+            const micBtn = document.getElementById('btn-toggle-mic');
+            const micIcon = document.getElementById('mic-icon');
+            const camBtn = document.getElementById('btn-toggle-cam');
+            const camIcon = document.getElementById('cam-icon');
+
+            if (isMicMuted) {
+                micBtn.className = 'w-12 h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center shadow-lg transition';
+                micIcon.className = 'fa-solid fa-microphone-slash text-base';
+            } else {
+                micBtn.className = 'w-12 h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center shadow-lg transition';
+                micIcon.className = 'fa-solid fa-microphone text-base';
+            }
+
+            if (isCamOff) {
+                camBtn.className = 'w-12 h-12 rounded-2xl bg-red-600 text-white flex items-center justify-center shadow-lg transition';
+                camIcon.className = 'fa-solid fa-video-slash text-base';
+            } else {
+                camBtn.className = 'w-12 h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center shadow-lg transition';
+                camIcon.className = 'fa-solid fa-video text-base';
+            }
         }
 
         function endCall() {
+            // Stop all WebRTC tracks
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+
+            clearInterval(callTimerInterval);
+            document.getElementById('call-timer').classList.add('hidden');
+            document.getElementById('local-video').srcObject = null;
+            document.getElementById('remote-video').srcObject = null;
+            document.getElementById('remote-video').classList.add('hidden');
+            document.getElementById('remote-placeholder').classList.remove('hidden');
             document.getElementById('modal-call').classList.add('hidden');
+
             showToast('Звонок завершен', 'info');
         }
 
