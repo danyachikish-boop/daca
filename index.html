@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="ru" class="dark">
+<html lang="ru" class="dark h-full">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>NexusChat - Realtime Messenger</title>
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
@@ -12,6 +13,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Socket.IO Client -->
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -37,28 +39,37 @@
             }
         }
     </script>
+    
     <style>
+        /* Use dynamic viewport height for mobile keyboards */
+        .app-height {
+            height: 100vh;
+            height: 100dvh;
+        }
+        
         ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
+            width: 5px;
+            height: 5px;
         }
         ::-webkit-scrollbar-track {
             background: transparent;
         }
         ::-webkit-scrollbar-thumb {
-            background: rgba(156, 163, 175, 0.3);
+            background: rgba(156, 163, 175, 0.25);
             border-radius: 10px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(156, 163, 175, 0.5);
+            background: rgba(156, 163, 175, 0.4);
         }
+        
         .animate-fade-in {
-            animation: fadeIn 0.2s ease-out forwards;
+            animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(6px); }
             to { opacity: 1; transform: translateY(0); }
         }
+        
         .pulse-online {
             box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
             animation: pulse-green 2s infinite;
@@ -68,19 +79,24 @@
             70% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
             100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
         }
+
+        /* Mobile touch highlights fix */
+        button, a, input {
+            -webkit-tap-highlight-color: transparent;
+        }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans antialiased h-screen overflow-hidden flex flex-col selection:bg-brand-500 selection:text-white">
+<body class="bg-slate-950 text-slate-100 font-sans antialiased app-height overflow-hidden flex flex-col selection:bg-brand-500 selection:text-white">
 
     <!-- AUTH MODAL OVERLAY (Login & Register) -->
-    <div id="auth-overlay" class="fixed inset-0 bg-slate-950/90 backdrop-blur-xl z-50 flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-8 shadow-2xl animate-fade-in relative">
+    <div id="auth-overlay" class="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl animate-fade-in relative max-h-[90dvh] overflow-y-auto">
             <div class="text-center mb-6">
-                <div class="w-16 h-16 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-2xl mx-auto flex items-center justify-center text-2xl font-bold text-white shadow-lg mb-3">
+                <div class="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-2xl mx-auto flex items-center justify-center text-2xl font-bold text-white shadow-lg mb-3">
                     <i class="fa-solid fa-comments"></i>
                 </div>
                 <h2 class="text-2xl font-bold text-white">NexusChat</h2>
-                <p class="text-xs text-slate-400 mt-1">Мессенджер для реального общения</p>
+                <p class="text-xs text-slate-400 mt-1">Мессенджер для общения без границ</p>
             </div>
 
             <!-- Auth Tabs -->
@@ -93,28 +109,28 @@
             <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs font-medium text-slate-400 mb-1">Имя пользователя (Логин)</label>
-                    <input type="text" id="login-username" required placeholder="Введите ваш логин" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
+                    <input type="text" id="login-username" required placeholder="Введите ваш логин" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-base sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-slate-400 mb-1">Пароль</label>
-                    <input type="password" id="login-password" required placeholder="••••••••" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
+                    <input type="password" id="login-password" required placeholder="••••••••" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-base sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
                 </div>
-                <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition shadow-lg shadow-indigo-600/30">Войти в аккаунт</button>
+                <button type="submit" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white rounded-xl text-xs font-semibold transition shadow-lg shadow-indigo-600/30">Войти в аккаунт</button>
             </form>
 
             <!-- Register Form -->
             <form id="register-form" onsubmit="handleRegister(event)" class="space-y-4 hidden">
                 <div>
                     <label class="block text-xs font-medium text-slate-400 mb-1">Имя пользователя</label>
-                    <input type="text" id="reg-username" required placeholder="Придумайте уникальный логин" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
+                    <input type="text" id="reg-username" required placeholder="Придумайте уникальный логин" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-base sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-slate-400 mb-1">Пароль</label>
-                    <input type="password" id="reg-password" required placeholder="Придумайте пароль" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
+                    <input type="password" id="reg-password" required placeholder="Придумайте пароль" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-base sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-slate-400 mb-1">Цвет аватарки</label>
-                    <select id="reg-avatar" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition">
+                    <select id="reg-avatar" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-base sm:text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition">
                         <option value="from-indigo-500 to-purple-500">Индиго-Фиолетовый</option>
                         <option value="from-blue-500 to-teal-400">Синий-Бирюзовый</option>
                         <option value="from-emerald-500 to-teal-600">Изумрудный</option>
@@ -122,23 +138,20 @@
                         <option value="from-amber-500 to-orange-600">Янтарный</option>
                     </select>
                 </div>
-                <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition shadow-lg shadow-indigo-600/30">Зарегистрироваться</button>
+                <button type="submit" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white rounded-xl text-xs font-semibold transition shadow-lg shadow-indigo-600/30">Зарегистрироваться</button>
             </form>
         </div>
     </div>
 
     <!-- App Container -->
-    <div id="app" class="flex h-full w-full relative overflow-hidden">
-        
-        <!-- Mobile Sidebar Overlay -->
-        <div id="sidebar-backdrop" onclick="toggleMobileSidebar()" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-20 hidden md:hidden transition-opacity"></div>
+    <div id="app" class="flex app-height w-full relative overflow-hidden">
 
         <!-- Left Sidebar: Chat List -->
-        <aside id="sidebar" class="fixed md:relative z-30 w-80 md:w-80 lg:w-96 h-full bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 transform -translate-x-full md:translate-x-0">
+        <aside id="sidebar" class="w-full md:w-80 lg:w-96 h-full bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 flex-shrink-0 z-20">
             
             <!-- User Header Profile -->
-            <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
-                <div class="flex items-center space-x-3 cursor-pointer" onclick="openProfileModal()">
+            <div class="p-3.5 sm:p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/80">
+                <div class="flex items-center space-x-3 cursor-pointer">
                     <div class="relative">
                         <div id="my-avatar" class="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-white shadow-lg">
                             ?
@@ -149,15 +162,15 @@
                         <h2 id="my-name-display" class="font-bold text-slate-100 text-sm flex items-center gap-1.5">
                             Загрузка...
                         </h2>
-                        <p id="my-status-display" class="text-xs text-slate-400 truncate max-w-[140px]">В сети</p>
+                        <p id="my-status-display" class="text-xs text-slate-400 truncate max-w-[130px]">В сети</p>
                     </div>
                 </div>
                 <div class="flex items-center space-x-1">
-                    <button onclick="openNewChatModal()" class="w-9 h-9 rounded-full bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600 hover:text-white transition flex items-center justify-center" title="Найти собеседника">
-                        <i class="fa-solid fa-user-plus"></i>
+                    <button onclick="openNewChatModal()" class="w-10 h-10 rounded-full bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600 hover:text-white transition flex items-center justify-center active:scale-95" title="Найти собеседника">
+                        <i class="fa-solid fa-user-plus text-sm"></i>
                     </button>
-                    <button onclick="logout()" class="w-9 h-9 rounded-full hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition flex items-center justify-center" title="Выйти из аккаунта">
-                        <i class="fa-solid fa-right-from-bracket"></i>
+                    <button onclick="logout()" class="w-10 h-10 rounded-full hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition flex items-center justify-center active:scale-95" title="Выйти из аккаунта">
+                        <i class="fa-solid fa-right-from-bracket text-sm"></i>
                     </button>
                 </div>
             </div>
@@ -165,15 +178,14 @@
             <!-- Search Bar -->
             <div class="p-3 border-b border-slate-800/60">
                 <div class="relative">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm"></i>
-                    <input type="text" id="search-input" oninput="filterChats()" placeholder="Поиск в вашем списке..." class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                    <input type="text" id="search-input" oninput="filterChats()" placeholder="Поиск диалогов..." class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2.5 text-base sm:text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition">
                 </div>
             </div>
 
             <!-- Chat Filter Tabs -->
-            <div class="flex border-b border-slate-800 text-xs font-medium text-slate-400 px-3 pt-2 gap-2">
+            <div class="flex border-b border-slate-800 text-xs font-medium text-slate-400 px-3 pt-2 pb-2 gap-2">
                 <button onclick="setTab('all')" id="tab-all" class="px-3 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-400 font-semibold transition">Все чаты</button>
-                <button onclick="setTab('active')" id="tab-active" class="px-3 py-1.5 rounded-lg hover:bg-slate-800 transition">Активные</button>
             </div>
 
             <!-- Chat Scroll Area -->
@@ -189,182 +201,161 @@
         </aside>
 
         <!-- Main Chat Area -->
-        <main class="flex-1 flex flex-col h-full bg-slate-950 relative overflow-hidden">
+        <main id="chat-main" class="hidden md:flex flex-1 flex-col h-full bg-slate-950 relative overflow-hidden z-10 w-full">
             
             <!-- Top Navbar for Active Chat -->
-            <header id="chat-header" class="h-16 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md px-4 flex items-center justify-between z-10">
-                <div class="flex items-center space-x-3">
-                    <button onclick="toggleMobileSidebar()" class="md:hidden w-8 h-8 rounded-lg bg-slate-800 text-slate-300 flex items-center justify-center">
-                        <i class="fa-solid fa-bars"></i>
+            <header id="chat-header" class="h-16 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md px-3 sm:px-4 flex items-center justify-between z-10 flex-shrink-0">
+                <div class="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+                    
+                    <!-- Mobile Back Button -->
+                    <button onclick="closeChatMobile()" class="md:hidden w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-arrow-left text-sm"></i>
                     </button>
                     
-                    <div id="header-avatar-container" class="relative">
+                    <div id="header-avatar-container" class="relative flex-shrink-0">
                         <div id="header-avatar" class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white shadow-md">
                             ?
                         </div>
                         <span id="header-status-dot" class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-slate-900 rounded-full"></span>
                     </div>
 
-                    <div>
-                        <h3 id="header-name" class="font-bold text-slate-100 text-sm flex items-center gap-2">
-                            Выберите или найдите чат
+                    <div class="min-w-0">
+                        <h3 id="header-name" class="font-bold text-slate-100 text-sm truncate">
+                            Выберите чат для общения
                         </h3>
-                        <p id="header-status-text" class="text-xs text-slate-400">---</p>
+                        <p id="header-status-text" class="text-[11px] text-slate-400 truncate">---</p>
                     </div>
                 </div>
 
-                <div class="flex items-center space-x-2">
-                    <button onclick="startCall('audio')" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center justify-center" title="Голосовой звонок">
-                        <i class="fa-solid fa-phone text-sm"></i>
+                <!-- Call and Options Buttons -->
+                <div class="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+                    <button onclick="startCall('audio')" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white transition flex items-center justify-center" title="Голосовой звонок">
+                        <i class="fa-solid fa-phone text-xs sm:text-sm"></i>
                     </button>
-                    <button onclick="startCall('video')" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center justify-center" title="Видеозвонок">
-                        <i class="fa-solid fa-video text-sm"></i>
-                    </button>
-                    <div class="h-5 w-[1px] bg-slate-800 mx-1"></div>
-                    <button onclick="toggleChatDetails()" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center justify-center" title="Информация">
-                        <i class="fa-solid fa-circle-info text-sm"></i>
+                    <button onclick="startCall('video')" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white transition flex items-center justify-center" title="Видеозвонок">
+                        <i class="fa-solid fa-video text-xs sm:text-sm"></i>
                     </button>
                 </div>
             </header>
 
-            <!-- Messages Stream -->
-            <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900/40 via-slate-950 to-slate-950">
+            <!-- Messages Stream Area -->
+            <div id="messages-container" class="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3.5 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900/30 via-slate-950 to-slate-950">
                 <div class="h-full flex items-center justify-center text-slate-500 text-sm flex-col space-y-3">
                     <i class="fa-regular fa-comments text-4xl opacity-30"></i>
                     <p>Выберите собеседника для начала диалога</p>
                 </div>
             </div>
 
-            <!-- Input Toolbar & Form -->
-            <div class="p-3 md:p-4 border-t border-slate-800 bg-slate-900/90 backdrop-blur-md relative">
+            <!-- Input Form Toolbar -->
+            <div class="p-2.5 sm:p-4 border-t border-slate-800 bg-slate-900/90 backdrop-blur-md relative flex-shrink-0">
                 
-                <!-- Quick Emoji Picker -->
-                <div id="emoji-picker" class="hidden absolute bottom-full left-4 mb-2 p-2 bg-slate-800 border border-slate-700 rounded-2xl shadow-xl flex gap-2 animate-fade-in z-20">
-                    <button onclick="insertEmoji('👍')" class="hover:scale-125 transition text-lg">👍</button>
-                    <button onclick="insertEmoji('❤️')" class="hover:scale-125 transition text-lg">❤️</button>
-                    <button onclick="insertEmoji('😂')" class="hover:scale-125 transition text-lg">😂</button>
-                    <button onclick="insertEmoji('🔥')" class="hover:scale-125 transition text-lg">🔥</button>
-                    <button onclick="insertEmoji('😎')" class="hover:scale-125 transition text-lg">😎</button>
-                    <button onclick="insertEmoji('🎉')" class="hover:scale-125 transition text-lg">🎉</button>
-                    <button onclick="insertEmoji('👋')" class="hover:scale-125 transition text-lg">👋</button>
+                <!-- Quick Emoji Picker Popup -->
+                <div id="emoji-picker" class="hidden absolute bottom-full left-2 sm:left-4 mb-2 p-2 bg-slate-800 border border-slate-700 rounded-2xl shadow-xl flex gap-1.5 sm:gap-2 animate-fade-in z-30">
+                    <button type="button" onclick="insertEmoji('👍')" class="hover:scale-125 transition text-xl p-1">👍</button>
+                    <button type="button" onclick="insertEmoji('❤️')" class="hover:scale-125 transition text-xl p-1">❤️</button>
+                    <button type="button" onclick="insertEmoji('😂')" class="hover:scale-125 transition text-xl p-1">😂</button>
+                    <button type="button" onclick="insertEmoji('🔥')" class="hover:scale-125 transition text-xl p-1">🔥</button>
+                    <button type="button" onclick="insertEmoji('😎')" class="hover:scale-125 transition text-xl p-1">😎</button>
+                    <button type="button" onclick="insertEmoji('🎉')" class="hover:scale-125 transition text-xl p-1">🎉</button>
+                    <button type="button" onclick="insertEmoji('👋')" class="hover:scale-125 transition text-xl p-1">👋</button>
                 </div>
 
                 <form id="message-form" onsubmit="handleSendMessage(event)" class="flex items-center space-x-2">
-                    <button type="button" onclick="toggleEmojiPicker()" class="p-2 text-slate-400 hover:text-indigo-400 transition rounded-xl hover:bg-slate-800">
+                    <button type="button" onclick="toggleEmojiPicker()" class="p-2.5 text-slate-400 hover:text-indigo-400 active:scale-95 transition rounded-xl hover:bg-slate-800 flex-shrink-0">
                         <i class="fa-regular fa-face-smile text-lg"></i>
                     </button>
 
-                    <input type="text" id="message-input" autocomplete="off" placeholder="Напишите сообщение..." class="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition">
+                    <!-- Text Input: text-base for mobile prevents auto-zoom -->
+                    <input type="text" id="message-input" autocomplete="off" placeholder="Напишите сообщение..." class="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-base sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition min-w-0">
 
-                    <button type="submit" class="w-11 h-11 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl flex items-center justify-center transition shadow-lg shadow-indigo-600/30 flex-shrink-0">
+                    <button type="submit" class="w-11 h-11 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white rounded-2xl flex items-center justify-center transition shadow-lg shadow-indigo-600/30 flex-shrink-0">
                         <i class="fa-solid fa-paper-plane text-sm"></i>
                     </button>
                 </form>
             </div>
         </main>
-
-        <!-- Right Details Sidepanel -->
-        <div id="details-panel" class="hidden lg:flex w-72 h-full bg-slate-900 border-l border-slate-800 flex-col p-4 space-y-6">
-            <div class="text-center pt-4">
-                <div id="details-avatar" class="w-20 h-20 rounded-full bg-indigo-600 mx-auto flex items-center justify-center font-bold text-2xl text-white shadow-xl mb-3">
-                    ?
-                </div>
-                <h4 id="details-name" class="font-bold text-slate-100">Пользователь</h4>
-                <p id="details-status" class="text-xs text-slate-400 mt-1">онлайн</p>
-            </div>
-
-            <div class="border-t border-slate-800 pt-4 space-y-2 text-xs">
-                <button onclick="clearChatHistory()" class="w-full text-left py-2 px-3 rounded-lg hover:bg-slate-800 text-red-400 transition flex items-center gap-2">
-                    <i class="fa-solid fa-trash"></i> Очистить диалог
-                </button>
-            </div>
-        </div>
     </div>
 
     <!-- MODAL: Add New Friend / Real User Search -->
     <div id="modal-new-chat" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl animate-fade-in relative">
-            <button onclick="closeModal('modal-new-chat')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+            <button onclick="closeModal('modal-new-chat')" class="absolute top-4 right-4 text-slate-400 hover:text-white p-2">
                 <i class="fa-solid fa-xmark text-lg"></i>
             </button>
             
-            <div class="flex items-center space-x-3 mb-6">
-                <div class="w-10 h-10 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-lg">
+            <div class="flex items-center space-x-3 mb-5">
+                <div class="w-10 h-10 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-lg flex-shrink-0">
                     <i class="fa-solid fa-user-plus"></i>
                 </div>
                 <div>
-                    <h3 class="font-bold text-slate-100">Найти зарегистрированного человека</h3>
-                    <p class="text-xs text-slate-400">Введите точный логин пользователя в базе</p>
+                    <h3 class="font-bold text-slate-100 text-base">Найти собеседника</h3>
+                    <p class="text-xs text-slate-400">Введите имя человека для создания чата</p>
                 </div>
             </div>
 
             <form onsubmit="handleFindUser(event)" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-medium text-slate-400 mb-1">Имя пользователя (username)</label>
-                    <input type="text" id="find-username-input" required placeholder="Например: alex, danya, vlad..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
-                </div>
-
-                <div id="find-user-result" class="hidden p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300">
-                    <!-- Search result dynamically populated -->
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Имя пользователя (логин)</label>
+                    <input type="text" id="find-username-input" required placeholder="Например: danya, vlad, alex..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-base sm:text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
                 </div>
 
                 <div class="pt-2 flex justify-end space-x-2">
                     <button type="button" onclick="closeModal('modal-new-chat')" class="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 transition">Отмена</button>
-                    <button type="submit" class="px-5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition shadow-lg shadow-indigo-600/30">Найти и открыть чат</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition shadow-lg shadow-indigo-600/30">Открыть чат</button>
                 </div>
             </form>
         </div>
     </div>
 
     <!-- MODAL: Call Screen -->
-    <div id="modal-call" class="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-50 hidden flex flex-col items-center justify-between p-4 md:p-8">
+    <div id="modal-call" class="fixed inset-0 bg-slate-950/95 backdrop-blur-xl z-50 hidden flex flex-col items-center justify-between p-4 sm:p-6">
         <!-- Top Status Bar -->
-        <div class="text-center pt-4 z-10">
-            <div id="call-avatar" class="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 mx-auto flex items-center justify-center font-bold text-3xl text-white shadow-2xl mb-2 animate-pulse">
+        <div class="text-center pt-2 z-10">
+            <div id="call-avatar" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 mx-auto flex items-center justify-center font-bold text-2xl sm:text-3xl text-white shadow-2xl mb-2 animate-pulse">
                 ?
             </div>
-            <h2 id="call-name" class="text-xl font-bold text-white">Имя</h2>
+            <h2 id="call-name" class="text-lg sm:text-xl font-bold text-white">Имя</h2>
             <p id="call-status" class="text-xs text-indigo-400 mt-0.5 flex items-center justify-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
-                <span>Инициализация WebRTC...</span>
+                <span>Инициализация медиа...</span>
             </p>
             <div id="call-timer" class="text-xs text-slate-400 mt-1 hidden font-mono">00:00</div>
         </div>
 
         <!-- Video Display Area -->
-        <div class="relative w-full max-w-3xl flex-1 my-4 bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden flex items-center justify-center shadow-2xl">
-            <!-- Remote Video / Avatar Placeholder -->
+        <div class="relative w-full max-w-2xl flex-1 my-3 bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden flex items-center justify-center shadow-2xl">
+            <!-- Remote Video / Placeholder -->
             <video id="remote-video" autoplay playsinline class="w-full h-full object-cover hidden"></video>
             <div id="remote-placeholder" class="text-center p-6">
-                <i class="fa-solid fa-user-astronaut text-6xl text-slate-700 mb-3 animate-bounce"></i>
-                <p class="text-slate-400 text-sm">Ожидание подключения собеседника...</p>
+                <i class="fa-solid fa-user text-5xl text-slate-700 mb-3 animate-bounce"></i>
+                <p class="text-slate-400 text-xs sm:text-sm">Ожидание подключения...</p>
             </div>
 
             <!-- Local Camera Preview Floating Window -->
-            <div id="local-video-container" class="absolute bottom-4 right-4 w-36 h-48 sm:w-44 sm:h-56 bg-slate-950 border border-slate-700/80 rounded-2xl overflow-hidden shadow-2xl hidden transition-all hover:scale-105">
+            <div id="local-video-container" class="absolute bottom-3 right-3 w-28 h-36 sm:w-40 sm:h-52 bg-slate-950 border border-slate-700/80 rounded-2xl overflow-hidden shadow-2xl hidden">
                 <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
-                <div class="absolute top-2 left-2 bg-slate-950/70 backdrop-blur-md text-[10px] text-slate-300 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Вы
+                <div class="absolute top-1.5 left-1.5 bg-slate-950/80 backdrop-blur-md text-[9px] text-slate-300 px-2 py-0.5 rounded-full">
+                    Вы
                 </div>
             </div>
         </div>
 
         <!-- Action Controls -->
-        <div class="flex items-center space-x-4 pb-4 z-10">
+        <div class="flex items-center space-x-4 pb-2 z-10">
             <button id="btn-toggle-mic" onclick="toggleMicrophone()" class="w-12 h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center shadow-lg transition">
                 <i class="fa-solid fa-microphone text-base" id="mic-icon"></i>
             </button>
             <button id="btn-toggle-cam" onclick="toggleCamera()" class="w-12 h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center shadow-lg transition">
                 <i class="fa-solid fa-video text-base" id="cam-icon"></i>
             </button>
-            <button onclick="endCall()" class="w-14 h-14 rounded-2xl bg-red-600 hover:bg-red-500 text-white text-xl flex items-center justify-center shadow-lg shadow-red-600/40 transition hover:scale-105">
+            <button onclick="endCall()" class="w-14 h-14 rounded-2xl bg-red-600 hover:bg-red-500 text-white text-xl flex items-center justify-center shadow-lg shadow-red-600/40 transition active:scale-95">
                 <i class="fa-solid fa-phone-slash"></i>
             </button>
         </div>
     </div>
 
     <!-- Toast Notification Popup -->
-    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+    <div id="toast-container" class="fixed bottom-4 right-4 left-4 sm:left-auto z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
     <script>
         // Global App State
@@ -372,13 +363,12 @@
             currentUser: null, // { username, avatar }
             activeChatUser: null, // username string
             chats: [], // [{ username, avatar, lastMessage, unread, messages: [] }]
-            activeTab: 'all',
             searchQuery: ''
         };
 
         let socket = null;
 
-        // Initialize Audio Sound FX
+        // Audio Sound FX
         const AudioFX = {
             ctx: null,
             init() {
@@ -420,7 +410,6 @@
             }
         };
 
-        // --- AUTH & SESSION LOGIC ---
         function switchAuthTab(tab) {
             const loginForm = document.getElementById('login-form');
             const regForm = document.getElementById('register-form');
@@ -458,10 +447,10 @@
                 if (data.success) {
                     onAuthSuccess(data.user);
                 } else {
-                    showToast(data.message || ' Ошибка входа', 'error');
+                    showToast(data.message || 'Ошибка входа', 'error');
                 }
             } catch(err) {
-                // Fallback for offline testing without python server active
+                // Fallback for testing without active Flask backend server
                 onAuthSuccess({ username: username, avatar: 'from-indigo-500 to-purple-500' });
             }
         }
@@ -483,13 +472,12 @@
                 const data = await res.json();
 
                 if (data.success) {
-                    showToast('Успешная регистрация!', 'success');
+                    showToast('Регистрация прошла успешно!', 'success');
                     onAuthSuccess(data.user);
                 } else {
                     showToast(data.message || 'Ошибка регистрации', 'error');
                 }
             } catch(err) {
-                // Fallback for testing without server
                 onAuthSuccess({ username: username, avatar: avatar });
             }
         }
@@ -518,13 +506,12 @@
             if (socket) socket.disconnect();
         }
 
-        // --- REALTIME SOCKET.IO CONNECTION ---
         function initSocketIO() {
             try {
                 socket = io();
 
                 socket.on('connect', () => {
-                    document.getElementById('socket-status').innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500 pulse-online"></span> Сеть: Онлайн';
+                    document.getElementById('socket-status').innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500 pulse-online"></span> Онлайн';
                     if (state.currentUser) {
                         socket.emit('register_socket', state.currentUser.username);
                     }
@@ -534,17 +521,15 @@
                     document.getElementById('socket-status').innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span> Офлайн';
                 });
 
-                // Listen to incoming messages
                 socket.on('receive_message', (data) => {
                     handleIncomingMessage(data);
                 });
 
             } catch(e) {
-                console.warn('Socket.IO fail to connect directly', e);
+                console.warn('SocketIO connection fallback mode', e);
             }
         }
 
-        // --- CHAT & MESSAGING LOGIC ---
         function loadSavedContacts() {
             const saved = localStorage.getItem(`nexus_chats_${state.currentUser.username}`);
             if (saved) {
@@ -563,7 +548,7 @@
         }
 
         async function openChatWithUser(targetUsername, targetAvatar = '') {
-            let existingChat = state.chats.find(c => c.username === targetUsername);
+            let existingChat = state.chats.find(c => c.username.toLowerCase() === targetUsername.toLowerCase());
             
             if (!existingChat) {
                 existingChat = {
@@ -575,10 +560,10 @@
                 state.chats.unshift(existingChat);
             }
 
-            state.activeChatUser = targetUsername;
+            state.activeChatUser = existingChat.username;
             existingChat.unread = 0;
 
-            // Fetch actual history from Flask server API
+            // Fetch history from Flask API if available
             try {
                 const res = await fetch(`/api/history/${encodeURIComponent(state.currentUser.username)}/${encodeURIComponent(targetUsername)}`);
                 if (res.ok) {
@@ -586,7 +571,7 @@
                     existingChat.messages = history;
                 }
             } catch(e) {
-                console.log('Unable to fetch history from server, using local history');
+                // Local fallback
             }
 
             saveContacts();
@@ -594,9 +579,26 @@
             renderActiveChat();
             closeModal('modal-new-chat');
 
-            // Close mobile sidebar
-            document.getElementById('sidebar').classList.add('-translate-x-full');
-            document.getElementById('sidebar-backdrop').classList.add('hidden');
+            // Responsive view switch for mobile: hide sidebar and show chat
+            const sidebar = document.getElementById('sidebar');
+            const chatMain = document.getElementById('chat-main');
+            
+            if (window.innerWidth < 768) {
+                sidebar.classList.add('hidden');
+                chatMain.classList.remove('hidden');
+                chatMain.classList.add('flex');
+            }
+        }
+
+        function closeChatMobile() {
+            state.activeChatUser = null;
+            const sidebar = document.getElementById('sidebar');
+            const chatMain = document.getElementById('chat-main');
+
+            chatMain.classList.add('hidden');
+            chatMain.classList.remove('flex');
+            sidebar.classList.remove('hidden');
+            renderChatList();
         }
 
         function handleSendMessage(e) {
@@ -614,11 +616,9 @@
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             };
 
-            // Emit to server via SocketIO
             if (socket && socket.connected) {
                 socket.emit('send_message', payload);
             } else {
-                // Fallback for standalone UI without active python backend
                 handleIncomingMessage(payload);
             }
 
@@ -630,7 +630,7 @@
             const isMe = data.sender === state.currentUser.username;
             const otherUser = isMe ? data.receiver : data.sender;
 
-            let chat = state.chats.find(c => c.username === otherUser);
+            let chat = state.chats.find(c => c.username.toLowerCase() === otherUser.toLowerCase());
             if (!chat) {
                 chat = {
                     username: otherUser,
@@ -648,7 +648,7 @@
                 timestamp: data.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             });
 
-            if (state.activeChatUser === otherUser) {
+            if (state.activeChatUser === chat.username) {
                 renderActiveChat();
             } else {
                 chat.unread = (chat.unread || 0) + 1;
@@ -659,7 +659,6 @@
             renderChatList();
         }
 
-        // --- RENDER FUNCTIONS ---
         function renderChatList() {
             const container = document.getElementById('chat-list');
             container.innerHTML = '';
@@ -670,9 +669,9 @@
 
             if (filtered.length === 0) {
                 container.innerHTML = `
-                    <div class="text-center py-8 text-slate-500 text-xs">
-                        <i class="fa-solid fa-users-slash text-2xl mb-2 block opacity-40"></i>
-                        Нет активных чатов
+                    <div class="text-center py-10 text-slate-500 text-xs">
+                        <i class="fa-solid fa-comments text-3xl mb-2 block opacity-30"></i>
+                        Нет диалогов. Нажмите "+" чтобы добавить человека.
                     </div>
                 `;
                 return;
@@ -685,7 +684,7 @@
                 const initials = chat.username.substring(0, 1).toUpperCase();
 
                 const item = document.createElement('div');
-                item.className = `p-3 rounded-2xl cursor-pointer transition flex items-center justify-between group ${
+                item.className = `p-3 rounded-2xl cursor-pointer transition flex items-center justify-between group active:scale-[0.99] ${
                     isActive ? 'bg-indigo-600/20 border border-indigo-500/30' : 'hover:bg-slate-800/60'
                 }`;
                 item.onclick = () => openChatWithUser(chat.username, chat.avatar);
@@ -699,7 +698,7 @@
                             <span class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-slate-900 rounded-full"></span>
                         </div>
                         <div class="overflow-hidden">
-                            <h4 class="font-bold text-slate-200 text-xs truncate group-hover:text-white">${chat.username}</h4>
+                            <h4 class="font-bold text-slate-200 text-xs sm:text-sm truncate group-hover:text-white">${chat.username}</h4>
                             <p class="text-[11px] text-slate-400 truncate mt-0.5">${lastText}</p>
                         </div>
                     </div>
@@ -718,7 +717,6 @@
             const chat = state.chats.find(c => c.username === state.activeChatUser);
             if (!chat) return;
 
-            // Header info
             document.getElementById('header-name').innerText = chat.username;
             document.getElementById('header-status-text').innerText = 'В сети';
             
@@ -727,13 +725,6 @@
             avatarEl.className = `w-10 h-10 rounded-full bg-gradient-to-tr ${chat.avatar || 'from-indigo-500 to-purple-500'} flex items-center justify-center font-bold text-white shadow-md`;
             avatarEl.innerText = initials;
 
-            // Details panel info
-            document.getElementById('details-name').innerText = chat.username;
-            const detailsAvatar = document.getElementById('details-avatar');
-            detailsAvatar.className = `w-20 h-20 rounded-full bg-gradient-to-tr ${chat.avatar || 'from-indigo-500 to-purple-500'} mx-auto flex items-center justify-center font-bold text-2xl text-white shadow-xl mb-3`;
-            detailsAvatar.innerText = initials;
-
-            // Render Messages
             const container = document.getElementById('messages-container');
             container.innerHTML = '';
 
@@ -752,10 +743,10 @@
                 msgNode.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-fade-in`;
 
                 msgNode.innerHTML = `
-                    <div class="max-w-[80%] md:max-w-[65%] rounded-2xl px-4 py-2.5 text-xs shadow-sm relative group ${
+                    <div class="max-w-[85%] sm:max-w-[65%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm shadow-sm relative group ${
                         isMe 
                         ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-br-none' 
-                        : 'bg-slate-800/90 text-slate-100 rounded-bl-none border border-slate-700/50'
+                        : 'bg-slate-800 text-slate-100 rounded-bl-none border border-slate-700/50'
                     }">
                         <p class="leading-relaxed break-words">${msg.text}</p>
                         <div class="flex items-center justify-end space-x-1 mt-1 text-[9px] ${isMe ? 'text-indigo-200' : 'text-slate-400'}">
@@ -770,17 +761,15 @@
             container.scrollTop = container.scrollHeight;
         }
 
-        // --- FIND USER MODAL SEARCH ---
         async function handleFindUser(e) {
             e.preventDefault();
             const input = document.getElementById('find-username-input');
-            const resultBox = document.getElementById('find-user-result');
             const targetUsername = input.value.trim();
 
             if (!targetUsername) return;
 
-            if (targetUsername === state.currentUser.username) {
-                showToast('Нельзя начать чат с самим собой', 'error');
+            if (targetUsername.toLowerCase() === state.currentUser.username.toLowerCase()) {
+                showToast('Нельзя создать чат с самим собой', 'error');
                 return;
             }
 
@@ -790,20 +779,42 @@
                     const data = await res.json();
                     if (data.exists) {
                         openChatWithUser(data.user.username, data.user.avatar);
-                        showToast(`Пользователь ${data.user.username} найден!`, 'success');
+                        showToast(`Чат с ${data.user.username} открыт`, 'success');
                     }
                 } else {
-                    // If not found in server DB or working in offline mode
                     openChatWithUser(targetUsername, 'from-amber-500 to-orange-600');
                     showToast(`Чат с "${targetUsername}" создан!`, 'success');
                 }
             } catch(e) {
-                // Offline fallback
                 openChatWithUser(targetUsername, 'from-amber-500 to-orange-600');
             }
         }
 
-        // --- UI HELPERS ---
+        function openNewChatModal() {
+            document.getElementById('modal-new-chat').classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function filterChats() {
+            state.searchQuery = document.getElementById('search-input').value;
+            renderChatList();
+        }
+
+        function toggleEmojiPicker() {
+            const picker = document.getElementById('emoji-picker');
+            picker.classList.toggle('hidden');
+        }
+
+        function insertEmoji(emoji) {
+            const input = document.getElementById('message-input');
+            input.value += emoji;
+            toggleEmojiPicker();
+            input.focus();
+        }
+
         let localStream = null;
         let callTimerInterval = null;
         let callSeconds = 0;
@@ -828,7 +839,7 @@
 
             callName.innerText = state.activeChatUser;
             callAvatar.innerText = state.activeChatUser.charAt(0).toUpperCase();
-            callStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Подключение микрофона и камеры...`;
+            callStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Подключение устройства...`;
             modal.classList.remove('hidden');
 
             isMicMuted = false;
@@ -838,13 +849,11 @@
             const isVideoCall = type === 'video';
 
             try {
-                // Request real browser camera & microphone access using WebRTC API
                 localStream = await navigator.mediaDevices.getUserMedia({
                     video: isVideoCall ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } : false,
                     audio: true
                 });
 
-                // Display local video preview
                 if (isVideoCall) {
                     localVideo.srcObject = localStream;
                     localVideoContainer.classList.remove('hidden');
@@ -852,14 +861,12 @@
                     localVideoContainer.classList.add('hidden');
                 }
 
-                callStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500 pulse-online"></span> Идет разговор (${type === 'video' ? 'Видео' : 'Аудио'})`;
+                callStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500 pulse-online"></span> Разговор (${type === 'video' ? 'Видео' : 'Аудио'})`;
                 
-                // Simulate Remote Stream Loopback / Peer display for interactive preview
                 remoteVideo.srcObject = localStream;
                 remoteVideo.classList.remove('hidden');
                 remotePlaceholder.classList.add('hidden');
 
-                // Start call timer
                 callSeconds = 0;
                 callTimer.innerText = '00:00';
                 callTimer.classList.remove('hidden');
@@ -871,20 +878,10 @@
                     callTimer.innerText = `${mins}:${secs}`;
                 }, 1000);
 
-                showToast(`Звонок начат (${isVideoCall ? 'Видео' : 'Голос'})`, 'success');
-
-                // If socket is connected, emit WebRTC call offer event
-                if (socket && socket.connected) {
-                    socket.emit('call_user', {
-                        target: state.activeChatUser,
-                        caller: state.currentUser.username,
-                        type: type
-                    });
-                }
+                showToast(`Звонок начат`, 'success');
 
             } catch (err) {
-                console.error('WebRTC Media Error:', err);
-                callStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span> Доступ к микрофону/камере отклонен`;
+                callStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span> Нет доступа к камере/микрофону`;
                 showToast('Не удалось получить доступ к камере или микрофону', 'error');
             }
         }
@@ -896,7 +893,6 @@
                 isMicMuted = !isMicMuted;
                 audioTrack.enabled = !isMicMuted;
                 updateMediaButtonsUI();
-                showToast(isMicMuted ? 'Микрофон отключен' : 'Микрофон включен', 'info');
             }
         }
 
@@ -907,9 +903,6 @@
                 isCamOff = !isCamOff;
                 videoTrack.enabled = !isCamOff;
                 updateMediaButtonsUI();
-                showToast(isCamOff ? 'Камера выключена' : 'Камера включена', 'info');
-            } else {
-                showToast('Видеопоток не активен', 'error');
             }
         }
 
@@ -937,7 +930,6 @@
         }
 
         function endCall() {
-            // Stop all WebRTC tracks
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
@@ -965,7 +957,6 @@
             setTimeout(() => toast.remove(), 3000);
         }
 
-        // --- APP INITIALIZATION ---
         window.onload = function() {
             const savedUser = localStorage.getItem('nexus_user');
             if (savedUser) {
