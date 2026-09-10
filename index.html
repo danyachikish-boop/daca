@@ -1,179 +1,1147 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" class="dark">
 <head>
-  <meta charset="UTF-8">
-  <title>Flask P2P Messenger</title>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; }
-    .container { max-width: 600px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 8px; }
-    input, button { padding: 10px; margin: 5px 0; border-radius: 4px; border: none; font-size: 14px; }
-    input[type="text"] { width: calc(100% - 22px); background: #2a2a2a; color: #fff; }
-    button { background: #007bff; color: white; cursor: pointer; }
-    button:hover { background: #0056b3; }
-    #chat { height: 300px; border: 1px solid #333; overflow-y: auto; padding: 10px; margin: 10px 0; background: #252525; }
-    .msg { margin-bottom: 8px; }
-    .msg.system { color: #888; font-style: italic; }
-  </style>
-</head>
-<body>
-
-<div class="container">
-  <h2>Flask P2P Мессенджер</h2>
-  
-  <div>
-    <input type="text" id="myId" placeholder="Ваш ID">
-    <button onclick="register()">Войти</button>
-  </div>
-
-  <hr style="border-color: #333;">
-
-  <div>
-    <input type="text" id="targetId" placeholder="ID собеседника">
-  </div>
-
-  <div id="chat"></div>
-
-  <div>
-    <input type="text" id="textMsg" placeholder="Введите сообщение...">
-    <button onclick="sendText()">Отправить текст</button>
-  </div>
-
-  <div style="margin-top: 10px;">
-    <input type="file" id="fileInput">
-    <button onclick="sendFile()">Отправить файл (P2P)</button>
-  </div>
-</div>
-
-<script>
-  // Подключение к Flask-серверу на порту 5001
-  const socket = io("http://localhost:5001");
-  let myUserId = "";
-  let peerConnection = null;
-  let dataChannel = null;
-  let fileBuffer = [];
-  let fileName = "";
-
-  const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
-
-  function log(msg, type = "") {
-    const chat = document.getElementById("chat");
-    const div = document.createElement("div");
-    div.className = "msg " + type;
-    div.textContent = msg;
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
-  }
-
-  function register() {
-    myUserId = document.getElementById("myId").value.trim();
-    if (!myUserId) return alert("Введите Ваш ID");
-    socket.emit("register", myUserId);
-    log(`Вы вошли как: ${myUserId}`, "system");
-  }
-
-  // --- Текстовые сообщения ---
-  function sendText() {
-    const targetId = document.getElementById("targetId").value.trim();
-    const text = document.getElementById("textMsg").value.trim();
-    if (!targetId || !text) return;
-
-    socket.emit("send_text", { sender_id: myUserId, target_id: targetId, text: text });
-    log(`Я -> ${targetId}: ${text}`);
-    document.getElementById("textMsg").value = "";
-  }
-
-  socket.on("receive_text", (data) => {
-    log(`${data.sender_id}: ${data.text}`);
-  });
-
-  // --- P2P Передача файлов (WebRTC) ---
-  function createPeerConnection(targetId) {
-    peerConnection = new RTCPeerConnection(config);
-
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        socket.emit("signal", { sender_id: myUserId, target_id: targetId, signal: { candidate: event.candidate } });
-      }
-    };
-
-    peerConnection.ondatachannel = (event) => {
-      const channel = event.channel;
-      setupChannelEvents(channel);
-    };
-  }
-
-  function setupChannelEvents(channel) {
-    channel.onopen = () => log("P2P Соединение установлено!", "system");
-    channel.onmessage = (e) => {
-      if (typeof e.data === "string") {
-        const meta = JSON.parse(e.data);
-        if (meta.type === "file-start") {
-          fileName = meta.name;
-          fileBuffer = [];
-          log(`Получение файла: ${fileName}...`, "system");
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusChat - Modern Messenger</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
         }
-      } else {
-        fileBuffer.push(e.data);
-      }
-    };
-    channel.onclose = () => {
-      if (fileBuffer.length > 0) {
-        const blob = new Blob(fileBuffer);
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = fileName;
-        link.click();
-        log(`Файл ${fileName} успешно сохранён на диск!`, "system");
-        fileBuffer = [];
-      }
-    };
-  }
+    </script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-  async function sendFile() {
-    const targetId = document.getElementById("targetId").value.trim();
-    const fileInput = document.getElementById("fileInput");
-    const file = fileInput.files[0];
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.4); border-radius: 9999px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(156, 163, 175, 0.6); }
+        .chat-bubble-incoming { border-bottom-left-radius: 4px; }
+        .chat-bubble-outgoing { border-bottom-right-radius: 4px; }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-slate-950 text-gray-800 dark:text-gray-100 antialiased h-screen overflow-hidden select-none">
 
-    if (!targetId || !file) return alert("Укажите ID и выберите файл");
+    <!-- Hidden File Input for uploading from computer -->
+    <input type="file" id="chatFileInput" class="hidden" onchange="window.handleFileSelected(event)">
 
-    createPeerConnection(targetId);
-    dataChannel = peerConnection.createDataChannel("fileTransfer");
-    setupChannelEvents(dataChannel);
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-    socket.emit("signal", { sender_id: myUserId, target_id: targetId, signal: { sdp: offer } });
+    <div class="flex h-screen w-screen overflow-hidden">
+        
+        <!-- Left Navigation Sidebar -->
+        <div class="w-16 sm:w-20 bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 flex flex-col items-center justify-between py-5 z-20 shrink-0">
+            <div class="flex flex-col items-center space-y-6 w-full">
+                <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-brand-500/30">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </div>
 
-    dataChannel.onopen = async () => {
-      log(`Отправка файла ${file.name}...`, "system");
-      dataChannel.send(JSON.stringify({ type: "file-start", name: file.name }));
+                <nav class="flex flex-col space-y-3 w-full px-2">
+                    <button class="w-full py-3 rounded-2xl bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 flex justify-center transition-all">
+                        <i class="fa-solid fa-message text-lg"></i>
+                    </button>
+                    <button onclick="window.showToast('Раздел вызовов')" class="w-full py-3 rounded-2xl text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-600 dark:hover:text-gray-200 flex justify-center transition-all">
+                        <i class="fa-solid fa-phone text-lg"></i>
+                    </button>
+                    <button onclick="window.showToast('Контакты')" class="w-full py-3 rounded-2xl text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-600 dark:hover:text-gray-200 flex justify-center transition-all">
+                        <i class="fa-solid fa-address-book text-lg"></i>
+                    </button>
+                </nav>
+            </div>
 
-      const arrayBuffer = await file.arrayBuffer();
-      const chunkSize = 16384; // 16KB
-      for (let i = 0; i < arrayBuffer.byteLength; i += chunkSize) {
-        dataChannel.send(arrayBuffer.slice(i, i + chunkSize));
-      }
-      setTimeout(() => dataChannel.close(), 1000);
-    };
-  }
+            <div class="flex flex-col items-center space-y-4">
+                <button id="themeToggleBtn" class="w-10 h-10 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-amber-400 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center transition-all" title="Переключить тему">
+                    <i id="themeIcon" class="fa-solid fa-sun text-lg"></i>
+                </button>
+                
+                <div id="userProfileBtnContainer" class="relative cursor-pointer" onclick="window.toggleAuthOrSettings()">
+                    <img id="userSidebarAvatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80" alt="Avatar" class="w-10 h-10 rounded-xl object-cover ring-2 ring-brand-500/50">
+                    <span id="userStatusBadge" class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
+                </div>
+            </div>
+        </div>
 
-  socket.on("signal", async (data) => {
-    const targetId = data.sender_id;
-    if (!peerConnection) createPeerConnection(targetId);
+        <!-- Chat List Panel -->
+        <div id="chatListPanel" class="w-80 sm:w-96 bg-gray-50 dark:bg-slate-900/90 border-r border-gray-200 dark:border-slate-800 flex flex-col shrink-0 transition-all duration-300">
+            <div class="p-4 border-b border-gray-200 dark:border-slate-800/80 space-y-3">
+                <div class="flex items-center justify-between">
+                    <h1 class="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Сообщения</h1>
+                    <button onclick="window.openNewChatModal()" class="w-9 h-9 rounded-xl bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center shadow-md active:scale-95 transition-all" title="Новый чат">
+                        <i class="fa-solid fa-pen-to-square text-sm"></i>
+                    </button>
+                </div>
 
-    if (data.signal.sdp) {
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
-      if (data.signal.sdp.type === "offer") {
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        socket.emit("signal", { sender_id: myUserId, target_id: targetId, signal: { sdp: answer } });
-      }
-    } else if (data.signal.candidate) {
-      await peerConnection.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
-    }
-  });
-</script>
+                <!-- Search Input -->
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-gray-400 text-xs"></i>
+                    <input id="chatSearchInput" type="text" placeholder="Поиск чатов и сообщений..." class="w-full bg-white dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700/60 rounded-xl pl-9 pr-4 py-2 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50 transition-all">
+                </div>
 
+                <!-- Filter Tabs -->
+                <div class="flex items-center space-x-1 pt-1 overflow-x-auto no-scrollbar">
+                    <button data-filter="all" class="filter-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white shadow-sm transition-all whitespace-nowrap">Все</button>
+                    <button data-filter="direct" class="filter-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-200 dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all whitespace-nowrap">Личные</button>
+                    <button data-filter="group" class="filter-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-200 dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all whitespace-nowrap">Группы</button>
+                    <button data-filter="channel" class="filter-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-200 dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all whitespace-nowrap">Каналы</button>
+                </div>
+            </div>
+
+            <!-- Chat Items Container -->
+            <div id="chatItemsContainer" class="flex-1 overflow-y-auto divide-y divide-gray-100 dark:divide-slate-800/50">
+                <!-- Rendered Dynamically via JS -->
+            </div>
+        </div>
+
+        <!-- Active Chat Area -->
+        <div id="activeChatArea" class="flex-1 flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden relative">
+            <!-- Dynamic Content Rendered via JS -->
+        </div>
+
+        <!-- Right Info Sidebar -->
+        <div id="infoSidebar" class="hidden w-72 bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-slate-800 flex-col shrink-0 p-6 space-y-6">
+            <div class="flex items-center justify-between">
+                <h3 class="font-bold text-gray-900 dark:text-white text-sm">Профиль</h3>
+                <button onclick="window.toggleInfoSidebar()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-col items-center text-center">
+                <img id="infoAvatar" src="" class="w-20 h-20 rounded-2xl object-cover mb-3 shadow-md">
+                <h4 id="infoName" class="font-bold text-base text-gray-900 dark:text-white"></h4>
+                <p id="infoRole" class="text-xs text-gray-500 dark:text-gray-400 mt-0.5"></p>
+            </div>
+
+            <div class="space-y-4 text-xs">
+                <div>
+                    <span class="text-gray-400 block mb-1">О себе</span>
+                    <p id="infoBio" class="text-gray-700 dark:text-gray-300 font-medium"></p>
+                </div>
+                <div>
+                    <span class="text-gray-400 block mb-1">Телефон / Юзернейм</span>
+                    <p id="infoHandle" class="text-brand-600 dark:text-brand-400 font-medium"></p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Auth Modal (Registration & Login) -->
+    <div id="googleAuthModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+            <div class="flex justify-between items-center mb-6 border-b border-gray-200 dark:border-slate-800 pb-3">
+                <div class="flex space-x-4">
+                    <button id="tabRegisterBtn" onclick="window.switchAuthTab('register')" class="text-base font-bold text-brand-600 dark:text-brand-400 border-b-2 border-brand-600 pb-1 transition-all">Регистрация</button>
+                    <button id="tabLoginBtn" onclick="window.switchAuthTab('login')" class="text-base font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 pb-1 transition-all">Вход</button>
+                </div>
+                <button onclick="window.toggleAuthModal(false)" class="text-gray-400 hover:text-gray-600 dark:hover:text-white text-sm">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form id="customAuthForm" onsubmit="window.handleAuthSubmit(event)" class="space-y-4">
+                <!-- Avatar Selection Area (Registration only) -->
+                <div id="avatarSelectField" class="space-y-1">
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400">Аватар профиля</label>
+                    <div class="flex items-center space-x-3 bg-gray-50 dark:bg-slate-800/50 p-2.5 rounded-2xl border border-gray-200 dark:border-slate-800">
+                        <img id="avatarPreview" src="https://api.dicebear.com/7.x/bottts/svg?seed=default" class="w-12 h-12 rounded-xl object-cover ring-2 ring-brand-500/40 bg-slate-900 shrink-0">
+                        <div class="flex flex-col space-y-1">
+                            <button type="button" onclick="document.getElementById('regAvatarInput').click()" class="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 text-xs font-medium rounded-xl transition-all border border-gray-200 dark:border-slate-700 flex items-center space-x-1.5 shadow-sm">
+                                <i class="fa-solid fa-camera text-brand-500"></i>
+                                <span>Загрузить аватарку</span>
+                            </button>
+                            <input type="file" id="regAvatarInput" accept="image/*" class="hidden" onchange="window.handleRegAvatarUpload(event)">
+                            <p class="text-[10px] text-gray-400">Выберите фото с компьютера</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Имя / Логин</label>
+                    <input id="authUsername" type="text" required placeholder="Alex_Ivanov" class="w-full bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Пароль</label>
+                    <input id="authPassword" type="password" required placeholder="••••••••" class="w-full bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500">
+                    <p class="text-[10px] text-gray-400 mt-1">Требования: мин. 5 символов, только латинские буквы и цифры</p>
+                </div>
+
+                <!-- Complex Canvas Captcha -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Защитная капча</label>
+                    <div class="flex items-center space-x-2 mb-2">
+                        <canvas id="captchaCanvas" width="180" height="46" class="rounded-xl border border-gray-300 dark:border-slate-700 bg-slate-900 select-none"></canvas>
+                        <button type="button" onclick="window.generateCaptcha()" class="p-2.5 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors" title="Обновить капчу">
+                            <i class="fa-solid fa-rotate-right"></i>
+                        </button>
+                    </div>
+                    <input id="authCaptchaInput" type="text" required placeholder="Введите текст с картинки" class="w-full bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500">
+                </div>
+
+                <div id="authErrorMsg" class="hidden text-xs text-rose-500 font-medium bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20"></div>
+
+                <button type="submit" id="authSubmitBtn" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs sm:text-sm rounded-xl transition-all shadow-md active:scale-95">
+                    Зарегистрироваться
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Account Settings Modal -->
+    <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="font-bold text-gray-900 dark:text-white text-base">Управление аккаунтом</h3>
+                <button onclick="window.toggleSettingsModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-col items-center text-center mb-6">
+                <!-- Clickable Avatar with hover overlay -->
+                <div class="relative group cursor-pointer mb-3" onclick="document.getElementById('changeAvatarInput').click()" title="Нажмите, чтобы изменить аватар">
+                    <img id="settingsUserAvatar" src="" class="w-20 h-20 rounded-2xl object-cover ring-2 ring-brand-500 shadow-md transition-all group-hover:brightness-75">
+                    <div class="absolute inset-0 bg-black/50 rounded-2xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs">
+                        <i class="fa-solid fa-camera text-lg mb-1"></i>
+                        <span class="text-[10px] font-medium">Сменить</span>
+                    </div>
+                </div>
+                <input type="file" id="changeAvatarInput" accept="image/*" class="hidden" onchange="window.handleSettingsAvatarChange(event)">
+
+                <h4 id="settingsUserName" class="font-bold text-gray-900 dark:text-white text-sm"></h4>
+                <p id="settingsUserEmail" class="text-xs text-gray-400 mt-0.5"></p>
+            </div>
+
+            <button onclick="window.signOutGoogle()" class="w-full py-2.5 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-semibold text-xs transition-all flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                <span>Выйти из аккаунта</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- New Chat Modal -->
+    <div id="newChatModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="font-bold text-gray-900 dark:text-white text-base">Создать новый чат</h3>
+                <button onclick="window.closeNewChatModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Название или имя</label>
+                    <input id="newChatNameInput" type="text" placeholder="например: Иван Петров или Рабочий Чат" class="w-full bg-gray-100 dark:bg-slate-800 border border-transparent focus:border-brand-500 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-white outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Тип разговора</label>
+                    <select id="newChatTypeSelect" class="w-full bg-gray-100 dark:bg-slate-800 border border-transparent focus:border-brand-500 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-white outline-none">
+                        <option value="direct">Личный чат</option>
+                        <option value="group">Группа</option>
+                        <option value="channel">Канал</option>
+                    </select>
+                </div>
+                <button onclick="window.createNewChat()" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold shadow-md transition-all mt-2">
+                    Создать диалог
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio/Video Call Modal -->
+    <div id="callModal" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-lg flex items-center justify-center p-4">
+        <div class="flex flex-col items-center text-center space-y-6">
+            <div class="relative">
+                <img id="callAvatar" src="" class="w-28 h-28 rounded-full object-cover ring-4 ring-brand-500/40 animate-pulse">
+                <span class="absolute bottom-1 right-1 w-5 h-5 bg-emerald-500 border-2 border-slate-950 rounded-full"></span>
+            </div>
+            <div>
+                <h3 id="callName" class="text-xl font-bold text-white"></h3>
+                <p id="callTypeStatus" class="text-xs text-brand-400 mt-1">Звонок...</p>
+            </div>
+            <div class="flex items-center space-x-6 pt-6">
+                <button onclick="window.endCall()" class="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center text-xl shadow-lg transition-all active:scale-90">
+                    <i class="fa-solid fa-phone-slash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let activeChatId = null;
+        let activeFilter = 'all';
+        let authMode = 'register';
+        let currentCaptchaCode = '';
+        let customUploadedAvatar = null;
+
+        // Initial empty chats list
+        const chats = [];
+
+        // Registered accounts mock DB
+        const registeredUsers = {};
+
+        // User Account State
+        let currentUser = null;
+
+        function renderChatList() {
+            const container = document.getElementById('chatItemsContainer');
+            if (!container) return;
+
+            const query = (document.getElementById('chatSearchInput')?.value || '').toLowerCase();
+
+            const filtered = chats.filter(chat => {
+                const matchesFilter = activeFilter === 'all' || chat.type === activeFilter;
+                const matchesQuery = chat.name.toLowerCase().includes(query);
+                return matchesFilter && matchesQuery;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="p-8 text-center text-gray-400 dark:text-gray-500">
+                        <i class="fa-solid fa-comments text-3xl mb-3 block opacity-40"></i>
+                        <p class="text-xs font-medium">Чатов не найдено</p>
+                        <p class="text-[10px] mt-1 text-gray-400">Нажмите "+", чтобы создать диалог</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filtered.map(chat => {
+                const isActive = chat.id === activeChatId;
+                const lastMsg = chat.messages[chat.messages.length - 1];
+                const lastMsgText = lastMsg ? (lastMsg.type === 'image' ? '📷 Изображение' : lastMsg.text) : 'Нет сообщений';
+                const lastMsgTime = lastMsg ? lastMsg.time : '';
+                const badgeType = chat.type === 'group' ? '👥' : chat.type === 'channel' ? '📢' : '👤';
+
+                return `
+                    <div onclick="selectChat('${chat.id}')" class="p-3.5 flex items-center space-x-3 cursor-pointer transition-all hover:bg-gray-100 dark:hover:bg-slate-800/60 ${isActive ? 'bg-brand-50/80 dark:bg-brand-500/10 border-l-4 border-brand-600 dark:border-brand-500' : ''}">
+                        <div class="relative shrink-0">
+                            <img src="${chat.avatar}" alt="${chat.name}" class="w-12 h-12 rounded-2xl object-cover">
+                            ${chat.online ? '<span class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>' : ''}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between mb-1">
+                                <h4 class="text-xs font-semibold text-gray-900 dark:text-white truncate flex items-center gap-1.5">
+                                    <span class="text-[10px] text-gray-400">${badgeType}</span>
+                                    <span>${chat.name}</span>
+                                </h4>
+                                <span class="text-[10px] text-gray-400 shrink-0">${lastMsgTime}</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${lastMsgText}</p>
+                                ${chat.unread > 0 ? `<span class="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-brand-600 text-white">${chat.unread}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateInfoSidebar(chat) {
+            if (!chat) return;
+            const avatar = document.getElementById('infoAvatar');
+            const name = document.getElementById('infoName');
+            const role = document.getElementById('infoRole');
+            const bio = document.getElementById('infoBio');
+            const handle = document.getElementById('infoHandle');
+
+            if (avatar) avatar.src = chat.avatar;
+            if (name) name.textContent = chat.name;
+            if (role) role.textContent = chat.role || 'Пользователь';
+            if (bio) bio.textContent = chat.bio || '—';
+            if (handle) handle.textContent = chat.handle || '@' + chat.name.toLowerCase().replace(/\s+/g, '_');
+        }
+
+        function renderActiveChat() {
+            const area = document.getElementById('activeChatArea');
+            if (!area) return;
+
+            const chat = chats.find(c => c.id === activeChatId);
+
+            if (!chat) {
+                area.innerHTML = `
+                    <div class="flex-1 flex flex-col items-center justify-center p-8 text-center bg-gray-50/50 dark:bg-slate-950/40">
+                        <div class="w-16 h-16 rounded-3xl bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center text-2xl mb-4 shadow-sm">
+                            <i class="fa-regular fa-paper-plane"></i>
+                        </div>
+                        <h3 class="text-base font-bold text-gray-900 dark:text-white mb-1">Выберите диалог</h3>
+                        <p class="text-xs text-gray-400 max-w-xs">Выберите чат из списка слева или создайте новый для начала переписки</p>
+                        <button onclick="window.openNewChatModal()" class="mt-4 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium rounded-xl transition-all shadow-md">
+                            + Новый чат
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            updateInfoSidebar(chat);
+
+            const messagesHTML = chat.messages.map(msg => {
+                const isMe = msg.sender === 'me';
+                return `
+                    <div class="flex ${isMe ? 'justify-end' : 'justify-start'} mb-3">
+                        <div class="max-w-[80%] sm:max-w-[70%] ${isMe ? 'bg-brand-600 text-white chat-bubble-outgoing' : 'bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-gray-100 chat-bubble-incoming'} p-3 rounded-2xl shadow-sm">
+                            ${msg.type === 'image' ? `
+                                <img src="${msg.mediaUrl}" class="rounded-xl mb-2 max-h-60 w-full object-cover">
+                            ` : msg.type === 'file' ? `
+                                <div class="flex items-center space-x-3 bg-black/10 dark:bg-white/10 p-2.5 rounded-xl mb-1">
+                                    <i class="fa-solid fa-file-arrow-down text-xl text-brand-400"></i>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-xs font-semibold truncate">${msg.fileName || 'Файл'}</p>
+                                        <p class="text-[9px] opacity-75">${msg.fileSize || ''}</p>
+                                    </div>
+                                </div>
+                            ` : ''}
+                            ${msg.text ? `<p class="text-xs leading-relaxed break-words">${msg.text}</p>` : ''}
+                            <span class="block text-[9px] ${isMe ? 'text-indigo-200 text-right' : 'text-gray-400'} mt-1">${msg.time}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            area.innerHTML = `
+                <!-- Messages Container (Header bar removed) -->
+                <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50/50 dark:bg-slate-950/20" id="messagesContainer">
+                    ${messagesHTML}
+                    <div id="typingIndicator" class="hidden flex items-center space-x-2 text-gray-400 text-xs py-2">
+                        <span class="w-2 h-2 rounded-full bg-brand-500 animate-bounce"></span>
+                        <span class="w-2 h-2 rounded-full bg-brand-500 animate-bounce delay-100"></span>
+                        <span class="w-2 h-2 rounded-full bg-brand-500 animate-bounce delay-200"></span>
+                        <span class="text-[11px] font-medium ml-1">${chat.name} печатает...</span>
+                    </div>
+                </div>
+
+                <!-- Chat Input Footer -->
+                <div class="p-3 border-t border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 relative">
+                    
+                    <!-- Emoji Picker Popover -->
+                    <div id="emojiPicker" class="hidden absolute bottom-16 left-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl p-3 shadow-xl z-30 grid grid-cols-6 gap-2 text-lg">
+                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('😊')">😊</span>
+                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('👍')">👍</span>
+                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('❤️')">❤️</span>
+                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('🔥')">🔥</span>
+                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('🎉')">🎉</span>
+                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('😂')">😂</span>
+                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('🙌')">🙌</span>
+                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('🚀')">🚀</span>
+                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('✨')">✨</span>
+                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('😎')">😎</span>
+                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('🤝')">🤝</span>
+                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('💡')">💡</span>
+                    </div>
+
+                    <form onsubmit="window.handleSendMessage(event)" class="flex items-center space-x-2">
+                        <button type="button" id="toggleEmojiBtn" onclick="window.toggleEmojiPicker(event)" class="text-gray-400 hover:text-brand-500 p-2 transition-colors text-base">
+                            <i class="fa-regular fa-face-smile"></i>
+                        </button>
+                        <button type="button" onclick="window.handleAttachFile()" class="text-gray-400 hover:text-brand-500 p-2 transition-colors text-base">
+                            <i class="fa-solid fa-paperclip"></i>
+                        </button>
+                        <input id="messageInput" type="text" placeholder="Напишите сообщение..." class="flex-1 bg-gray-100 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700/60 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        <button type="button" onclick="window.recordVoiceNote()" class="text-gray-400 hover:text-brand-500 p-2 transition-colors text-base">
+                            <i class="fa-solid fa-microphone"></i>
+                        </button>
+                        <button type="submit" class="w-10 h-10 rounded-xl bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center shadow-md active:scale-95 transition-all">
+                            <i class="fa-solid fa-paper-plane text-xs"></i>
+                        </button>
+                    </form>
+                </div>
+            `;
+
+            const container = document.getElementById('messagesContainer');
+            if (container) container.scrollTop = container.scrollHeight;
+        }
+
+        window.insertEmoji = function(emoji) {
+            const input = document.getElementById('messageInput');
+            if (input) {
+                input.value += emoji;
+                input.focus();
+            }
+            const picker = document.getElementById('emojiPicker');
+            if (picker) picker.classList.add('hidden');
+        };
+
+        function generateCaptchaCode(length = 6) {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+            let res = '';
+            for (let i = 0; i < length; i++) {
+                res += chars.charAt(floor(Math.random() * chars.length));
+            }
+            return res;
+        }
+
+        function floor(val) { return Math.floor(val); }
+
+        window.generateCaptcha = function() {
+            const canvas = document.getElementById('captchaCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Background distortion
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Generate code
+            currentCaptchaCode = generateCaptchaCode(6);
+
+            // Add background noise lines
+            for (let i = 0; i < 8; i++) {
+                ctx.strokeStyle = `rgba(${floor(Math.random()*255)}, ${floor(Math.random()*255)}, ${floor(Math.random()*255)}, 0.4)`;
+                ctx.lineWidth = Math.random() * 2 + 1;
+                ctx.beginPath();
+                ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
+                ctx.bezierCurveTo(
+                    Math.random() * canvas.width, Math.random() * canvas.height,
+                    Math.random() * canvas.width, Math.random() * canvas.height,
+                    Math.random() * canvas.width, Math.random() * canvas.height
+                );
+                ctx.stroke();
+            }
+
+            // Draw noise dots
+            for (let i = 0; i < 60; i++) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.5})`;
+                ctx.beginPath();
+                ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, Math.random() * 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw distorted characters
+            ctx.font = 'bold 22px Inter, sans-serif';
+            ctx.textBaseline = 'middle';
+
+            const startX = 15;
+            for (let i = 0; i < currentCaptchaCode.length; i++) {
+                const char = currentCaptchaCode[i];
+                ctx.save();
+                
+                const x = startX + i * 26 + (Math.random() * 4 - 2);
+                const y = canvas.height / 2 + (Math.random() * 8 - 4);
+                const angle = (Math.random() - 0.5) * 0.5; // Rotate angle
+
+                ctx.translate(x, y);
+                ctx.rotate(angle);
+
+                // Gradient per character
+                const grad = ctx.createLinearGradient(0, 0, 0, 20);
+                grad.addColorStop(0, '#818cf8');
+                grad.addColorStop(1, '#38bdf8');
+                ctx.fillStyle = grad;
+
+                ctx.fillText(char, 0, 0);
+                ctx.restore();
+            }
+        };
+
+        window.switchAuthTab = function(mode) {
+            authMode = mode;
+            const regBtn = document.getElementById('tabRegisterBtn');
+            const logBtn = document.getElementById('tabLoginBtn');
+            const submitBtn = document.getElementById('authSubmitBtn');
+            const errorMsg = document.getElementById('authErrorMsg');
+            const avatarField = document.getElementById('avatarSelectField');
+
+            if (errorMsg) errorMsg.classList.add('hidden');
+
+            if (mode === 'register') {
+                regBtn.className = 'text-base font-bold text-brand-600 dark:text-brand-400 border-b-2 border-brand-600 pb-1 transition-all';
+                logBtn.className = 'text-base font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 pb-1 transition-all';
+                submitBtn.textContent = 'Зарегистрироваться';
+                if (avatarField) avatarField.classList.remove('hidden');
+            } else {
+                logBtn.className = 'text-base font-bold text-brand-600 dark:text-brand-400 border-b-2 border-brand-600 pb-1 transition-all';
+                regBtn.className = 'text-base font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 pb-1 transition-all';
+                submitBtn.textContent = 'Войти';
+                if (avatarField) avatarField.classList.add('hidden');
+            }
+            window.generateCaptcha();
+        };
+
+        window.handleRegAvatarUpload = function(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            const file = files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                customUploadedAvatar = e.target.result;
+                const preview = document.getElementById('avatarPreview');
+                if (preview) preview.src = customUploadedAvatar;
+                window.showToast('Аватарка загружена!');
+            };
+
+            reader.readAsDataURL(file);
+        };
+
+        window.handleSettingsAvatarChange = function(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            const file = files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const newAvatar = e.target.result;
+                if (currentUser) {
+                    currentUser.avatar = newAvatar;
+
+                    if (registeredUsers[currentUser.name]) {
+                        if (typeof registeredUsers[currentUser.name] === 'object') {
+                            registeredUsers[currentUser.name].avatar = newAvatar;
+                        }
+                    }
+
+                    // Update UI elements
+                    const settingsAvatar = document.getElementById('settingsUserAvatar');
+                    if (settingsAvatar) settingsAvatar.src = newAvatar;
+
+                    const sidebarAvatar = document.getElementById('userSidebarAvatar');
+                    if (sidebarAvatar) sidebarAvatar.src = newAvatar;
+
+                    window.showToast('Аватар профиля обновлен!');
+
+                    // Backend API Hook: Send avatar update to Python server (Render.com)
+                    window.BackendAPI.updateUserAvatar(currentUser.id, newAvatar);
+                }
+            };
+
+            reader.readAsDataURL(file);
+        };
+
+        window.toggleAuthModal = function(show) {
+            const modal = document.getElementById('googleAuthModal');
+            if (show) {
+                modal.classList.remove('hidden');
+                window.generateCaptcha();
+            } else {
+                modal.classList.add('hidden');
+            }
+        };
+
+        window.handleAuthSubmit = function(e) {
+            e.preventDefault();
+
+            const username = document.getElementById('authUsername').value.trim();
+            const password = document.getElementById('authPassword').value;
+            const captchaInput = document.getElementById('authCaptchaInput').value.trim();
+            const errorMsg = document.getElementById('authErrorMsg');
+
+            function showError(msg) {
+                errorMsg.textContent = msg;
+                errorMsg.classList.remove('hidden');
+                window.generateCaptcha();
+            }
+
+            // 1. Validate Captcha
+            if (captchaInput.toLowerCase() !== currentCaptchaCode.toLowerCase()) {
+                showError('Неверный код капчи! Попробуйте снова.');
+                return;
+            }
+
+            // 2. Validate Password Rules
+            // - Min 5 characters
+            if (password.length < 5) {
+                showError('Пароль должен содержать минимум 5 символов.');
+                return;
+            }
+
+            // - Must contain digits
+            if (!/\d/.test(password)) {
+                showError('Пароль должен содержать хотя бы одну цифру.');
+                return;
+            }
+
+            // - Letters ONLY Latin (no Cyrillic or other non-Latin alphabets)
+            const latinOnlyRegex = /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/;
+            if (!latinOnlyRegex.test(password)) {
+                showError('Пароль должен содержать только латинские буквы и цифры.');
+                return;
+            }
+
+            if (authMode === 'register') {
+                if (registeredUsers[username]) {
+                    showError('Пользователь с таким именем уже зарегистрирован!');
+                    return;
+                }
+
+                const userAvatar = customUploadedAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`;
+
+                // Register user
+                registeredUsers[username] = {
+                    password: password,
+                    avatar: userAvatar
+                };
+
+                currentUser = {
+                    name: username,
+                    email: username.toLowerCase() + '@nexus.chat',
+                    avatar: userAvatar,
+                    id: 'user_' + Date.now()
+                };
+
+                window.showToast(`Регистрация успешна! Добро пожаловать, ${username}`);
+            } else {
+                // Login
+                const userData = registeredUsers[username];
+                if (!userData || (typeof userData === 'string' ? userData !== password : userData.password !== password)) {
+                    showError('Неверное имя пользователя или пароль!');
+                    return;
+                }
+
+                const userAvatar = typeof userData === 'object' && userData.avatar ? userData.avatar : `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`;
+
+                currentUser = {
+                    name: username,
+                    email: username.toLowerCase() + '@nexus.chat',
+                    avatar: userAvatar,
+                    id: 'user_' + Date.now()
+                };
+
+                window.showToast(`Вы успешно вошли как ${username}`);
+            }
+
+            // Update UI
+            document.getElementById('userSidebarAvatar').src = currentUser.avatar;
+            window.toggleAuthModal(false);
+
+            // Backend API Sync
+            window.BackendAPI.onUserAuth(currentUser, authMode);
+
+            // Reset form
+            document.getElementById('customAuthForm').reset();
+            customUploadedAvatar = null;
+            const preview = document.getElementById('avatarPreview');
+            if (preview) preview.src = 'https://api.dicebear.com/7.x/bottts/svg?seed=default';
+            errorMsg.classList.add('hidden');
+        };
+
+        window.signOutGoogle = function() {
+            currentUser = null;
+            document.getElementById('settingsModal').classList.add('hidden');
+            window.toggleAuthModal(true);
+            window.showToast('Вы вышли из аккаунта');
+        };
+
+        window.toggleAuthOrSettings = function() {
+            if (currentUser) {
+                document.getElementById('settingsUserAvatar').src = currentUser.avatar;
+                document.getElementById('settingsUserName').textContent = currentUser.name;
+                document.getElementById('settingsUserEmail').textContent = currentUser.email;
+                document.getElementById('settingsModal').classList.remove('hidden');
+            } else {
+                window.toggleAuthModal(true);
+            }
+        };
+
+        window.toggleSettingsModal = function() {
+            document.getElementById('settingsModal').classList.toggle('hidden');
+        };
+
+        function selectChat(id) {
+            activeChatId = id;
+            const chat = chats.find(c => c.id === id);
+            if (chat) chat.unread = 0;
+            
+            renderChatList();
+            renderActiveChat();
+        }
+
+        window.handleSendMessage = function(e) {
+            if (e) e.preventDefault();
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const chat = chats.find(c => c.id === activeChatId);
+            if (!chat) return;
+
+            const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            chat.messages.push({
+                id: Date.now(),
+                sender: 'me',
+                text: text,
+                time: timeNow,
+                type: 'text'
+            });
+
+            // Send via Backend API / WebSocket to Python backend
+            window.BackendAPI.sendMessage({
+                chatId: activeChatId,
+                senderId: currentUser ? currentUser.id : 'guest',
+                text: text,
+                time: timeNow
+            });
+
+            input.value = '';
+            renderChatList();
+            renderActiveChat();
+
+            /* Бот-автоответчик отключен для полноценного Python бэкенда */
+        };
+
+        window.toggleEmojiPicker = function(e) {
+            if (e) e.stopPropagation();
+            const picker = document.getElementById('emojiPicker');
+            picker.classList.toggle('hidden');
+        };
+
+        window.handleAttachFile = function() {
+            const fileInput = document.getElementById('chatFileInput');
+            if (fileInput) {
+                fileInput.value = '';
+                fileInput.click();
+            }
+        };
+
+        window.handleFileSelected = function(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            const chat = chats.find(c => c.id === activeChatId);
+            if (!chat) return;
+
+            const file = files[0];
+            const reader = new FileReader();
+            const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            reader.onload = function(e) {
+                const fileUrl = e.target.result;
+                const isImage = file.type.startsWith('image/');
+                
+                const sizeKB = (file.size / 1024).toFixed(1);
+                const sizeStr = sizeKB > 1024 ? (sizeKB / 1024).toFixed(1) + ' MB' : sizeKB + ' KB';
+
+                if (isImage) {
+                    chat.messages.push({
+                        id: Date.now(),
+                        sender: 'me',
+                        text: file.name,
+                        mediaUrl: fileUrl,
+                        time: timeNow,
+                        type: 'image'
+                    });
+                } else {
+                    chat.messages.push({
+                        id: Date.now(),
+                        sender: 'me',
+                        fileName: file.name,
+                        fileSize: sizeStr,
+                        mediaUrl: fileUrl,
+                        text: '',
+                        time: timeNow,
+                        type: 'file'
+                    });
+                }
+
+                renderChatList();
+                renderActiveChat();
+                window.showToast(`Прикреплен файл: ${file.name}`);
+            };
+
+            reader.readAsDataURL(file);
+        };
+
+        window.recordVoiceNote = function() {
+            window.showToast('Запись голосового сообщения...');
+        };
+
+        window.startCall = function(type) {
+            const chat = chats.find(c => c.id === activeChatId);
+            if (!chat) return;
+
+            document.getElementById('callAvatar').src = chat.avatar;
+            document.getElementById('callName').textContent = chat.name;
+            document.getElementById('callTypeStatus').textContent = type === 'video' ? 'Видеовызов...' : 'Аудиовызов...';
+            document.getElementById('callModal').classList.remove('hidden');
+        };
+
+        window.endCall = function() {
+            document.getElementById('callModal').classList.add('hidden');
+            window.showToast('Звонок завершен');
+        };
+
+        window.toggleInfoSidebar = function() {
+            const sidebar = document.getElementById('infoSidebar');
+            sidebar.classList.toggle('hidden');
+            sidebar.classList.toggle('flex');
+        };
+
+        window.openNewChatModal = function() {
+            document.getElementById('newChatModal').classList.remove('hidden');
+        };
+
+        window.closeNewChatModal = function() {
+            document.getElementById('newChatModal').classList.add('hidden');
+        };
+
+        window.createNewChat = async function() {
+            const name = document.getElementById('newChatNameInput').value.trim();
+            const type = document.getElementById('newChatTypeSelect').value;
+
+            if (!name) {
+                window.showToast('Введите имя пользователя или название чата');
+                return;
+            }
+
+            // Проверка авторизации
+            if (!currentUser) {
+                window.showToast('Сначала войдите в аккаунт!');
+                window.toggleAuthModal(true);
+                return;
+            }
+
+            // Нельзя создать чат с самим собой
+            if (name.toLowerCase() === currentUser.name.toLowerCase()) {
+                window.showToast('Нельзя создать чат с самим собой');
+                return;
+            }
+
+            // Для личных чатов: проверяем, существует ли такой человек в базе
+            if (type === 'direct') {
+                const registeredUser = registeredUsers[name];
+                const backendUserExists = window.BackendAPI.checkUserExists ? await window.BackendAPI.checkUserExists(name) : false;
+
+                if (!registeredUser && !backendUserExists) {
+                    window.showToast(`Ошибка: Пользователь "${name}" не зарегистрирован!`);
+                    return;
+                }
+            }
+
+            // Получаем аватар найденного пользователя
+            const targetUser = registeredUsers[name];
+            const avatarUrl = (targetUser && targetUser.avatar) 
+                ? targetUser.avatar 
+                : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
+
+            const newChat = {
+                id: 'chat_' + Date.now(),
+                name: name,
+                type: type,
+                avatar: avatarUrl,
+                status: 'В сети',
+                role: type === 'direct' ? 'Пользователь' : 'Участник',
+                bio: type === 'direct' ? 'Пользователь NexusChat' : 'Групповой чат',
+                handle: '@' + name.toLowerCase().replace(/\s+/g, '_'),
+                unread: 0,
+                online: true,
+                messages: []
+            };
+
+            chats.unshift(newChat);
+            selectChat(newChat.id);
+            window.closeNewChatModal();
+            document.getElementById('newChatNameInput').value = '';
+            window.showToast('Чат успешно создан');
+
+            // Синхронизация с Python Бэкендом
+            window.BackendAPI.createChat(newChat);
+        };
+
+        window.showToast = function(msg) {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = 'pointer-events-auto px-4 py-2.5 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-semibold shadow-xl flex items-center space-x-2 transition-all duration-300 transform translate-y-2 opacity-0';
+            toast.innerHTML = `<i class="fa-solid fa-circle-info text-brand-500"></i><span>${msg}</span>`;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 50);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        };
+
+        // Настройка готового взаимодействия с Python бэкендом (FastAPI / Flask / WebSockets)
+        window.BackendAPI = {
+            baseUrl: "https://your-python-backend.onrender.com", // Укажите URL вашего сервера на Render.com
+            wsUrl: "wss://your-python-backend.onrender.com/ws",
+            socket: null,
+
+            initWebSocket: function() {
+                /*
+                // Код подключения WebSockets для реального времени:
+                try {
+                    this.socket = new WebSocket(this.wsUrl);
+                    
+                    this.socket.onopen = () => console.log("[Python WS] Подключено");
+                    
+                    this.socket.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'NEW_MESSAGE') {
+                            const chat = chats.find(c => c.id === data.chatId);
+                            if (chat) {
+                                chat.messages.push(data.message);
+                                renderChatList();
+                                if (activeChatId === chat.id) renderActiveChat();
+                            }
+                        }
+                    };
+
+                    this.socket.onclose = () => {
+                        setTimeout(() => this.initWebSocket(), 3000); // Реконнект
+                    };
+                } catch(e) {
+                    console.error("WS Error:", e);
+                }
+                */
+            },
+
+            checkUserExists: async function(username) {
+                console.log(`[Python API] Проверка наличия пользователя: ${username}`);
+                /*
+                try {
+                    const response = await fetch(`${this.baseUrl}/api/users/check?username=${encodeURIComponent(username)}`);
+                    const data = await response.json();
+                    return data.exists;
+                } catch (e) {
+                    console.error("Backend check user error", e);
+                    return false;
+                }
+                */
+                return false;
+            },
+
+            createChat: async function(chatData) {
+                console.log(`[Python API] Создание нового чата:`, chatData);
+                /*
+                try {
+                    await fetch(`${this.baseUrl}/api/chats`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(chatData)
+                    });
+                } catch(e) {
+                    console.error("Create chat error", e);
+                }
+                */
+            },
+
+            onUserAuth: async function(user, mode) {
+                console.log(`[Python API] Авторизация (${mode}):`, user);
+                /*
+                try {
+                    await fetch(`${this.baseUrl}/api/auth/${mode}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(user)
+                    });
+                } catch (e) {
+                    console.error("Backend auth error", e);
+                }
+                */
+            },
+
+            updateUserAvatar: async function(userId, avatarBase64) {
+                console.log(`[Python API] Обновление аватара пользователя: ${userId}`);
+                /*
+                try {
+                    await fetch(`${this.baseUrl}/api/users/avatar`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId, avatar: avatarBase64 })
+                    });
+                } catch(e) {
+                    console.error("Avatar update error", e);
+                }
+                */
+            },
+
+            sendMessage: async function(msgData) {
+                console.log(`[Python API] Отправка сообщения:`, msgData);
+                /*
+                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                    this.socket.send(JSON.stringify({ type: 'SEND_MESSAGE', ...msgData }));
+                } else {
+                    await fetch(`${this.baseUrl}/api/messages`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(msgData)
+                    });
+                }
+                */
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderChatList();
+            renderActiveChat();
+            window.generateCaptcha();
+            window.toggleAuthModal(true);
+            window.BackendAPI.initWebSocket();
+
+            // Filter Tabs
+            document.querySelectorAll('.filter-tab').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.filter-tab').forEach(b => {
+                        b.classList.remove('bg-brand-600', 'text-white');
+                        b.classList.add('bg-gray-200', 'dark:bg-slate-800', 'text-gray-600', 'dark:text-gray-400');
+                    });
+                    e.target.classList.add('bg-brand-600', 'text-white');
+                    e.target.classList.remove('bg-gray-200', 'dark:bg-slate-800', 'text-gray-600', 'dark:text-gray-400');
+
+                    activeFilter = e.target.getAttribute('data-filter');
+                    renderChatList();
+                });
+            });
+
+            // Search Filter
+            document.getElementById('chatSearchInput')?.addEventListener('input', renderChatList);
+
+            // Theme Toggle
+            document.getElementById('themeToggleBtn')?.addEventListener('click', () => {
+                document.documentElement.classList.toggle('dark');
+                const isDark = document.documentElement.classList.contains('dark');
+                document.getElementById('themeIcon').className = isDark ? 'fa-solid fa-sun text-lg' : 'fa-solid fa-moon text-lg text-slate-700';
+            });
+
+            // Close emoji picker on click outside
+            document.addEventListener('click', (e) => {
+                const picker = document.getElementById('emojiPicker');
+                const toggleBtn = document.getElementById('toggleEmojiBtn');
+                if (picker && !picker.contains(e.target) && !toggleBtn.contains(e.target)) {
+                    picker.classList.add('hidden');
+                }
+            });
+        });
+    </script>
 </body>
 </html>
