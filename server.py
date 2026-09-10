@@ -1,26 +1,24 @@
 import os
 import sqlite3
 from flask import Flask, render_template_string, request, jsonify
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit, join_room
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'nexus_secret_key_2026'
 
-# Инициализация Socket.IO
-cursor.execute("SELECT username, avatar FROM users WHERE username = ?", (username,))
-# Указываем путь к папке проекта
-FOLDER_PATH = r"X:\python project\видео редактор"
-DB_PATH = os.path.join(FOLDER_PATH, "messenger.db")
+# Запуск в режиме threading (без eventlet)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-# Хранилище активных подключений: {username: socket_id}
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "messenger.db")
 active_users = {}
 
-# --- РАБОТА С БАЗОЙ ДАННЫХ (SQLite) ---
-def init_db():
+def get_db():
     conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # Таблица пользователей
+    return conn, conn.cursor()
+
+def init_db():
+    conn, cursor = get_db()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,8 +27,6 @@ def init_db():
             avatar TEXT
         )
     ''')
-    
-    # Таблица сообщений
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,17 +37,14 @@ def init_db():
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
     conn.commit()
     conn.close()
 
 init_db()
 
-# --- МАРШРУТЫ (REST API) ---
-
 @app.route('/')
 def index():
-    html_path = os.path.join(FOLDER_PATH, 'index.html')
+    html_path = os.path.join(BASE_DIR, 'index.html')
     with open(html_path, 'r', encoding='utf-8') as f:
         return render_template_string(f.read())
 
@@ -65,8 +58,7 @@ def register():
     if not username or not password:
         return jsonify({"success": False, "message": "Заполните все поля"}), 400
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db()
     try:
         cursor.execute("INSERT INTO users (username, password, avatar) VALUES (?, ?, ?)", (username, password, avatar))
         conn.commit()
@@ -82,46 +74,29 @@ def login():
     username = data.get('username')
     password = data.get('password')
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db()
     cursor.execute("SELECT username, avatar FROM users WHERE username = ? AND password = ?", (username, password))
     user = cursor.fetchone()
     conn.close()
 
     if user:
         return jsonify({"success": True, "user": {"username": user[0], "avatar": user[1]}})
-    return jsonify({"success": False, "message": "Неверное имя пользователя или пароль"}), 401
+    return jsonify({"success": False, "message": "Неверный логин или пароль"}), 401
 
 @app.route('/api/check_user/<username>', methods=['GET'])
 def check_user(username):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db()
     cursor.execute("SELECT username, avatar FROM users WHERE username = ?", (username,))
     user = cursor.fetchone()
     conn.close()
 
     if user:
         return jsonify({"exists": True, "user": {"username": user[0], "avatar": user[1]}})
-    return jsonify({"exists": False}), 444
-
-@app.route('/api/update_avatar', methods=['POST'])
-def update_avatar():
-    data = request.json or {}
-    username = data.get('username')
-    avatar = data.get('avatar')
-
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET avatar = ? WHERE username = ?", (avatar, username))
-    conn.commit()
-    conn.close()
-
-    return jsonify({"success": True})
+    return jsonify({"exists": False}), 404
 
 @app.route('/api/history/<user1>/<user2>', methods=['GET'])
 def get_history(user1, user2):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db()
     cursor.execute('''
         SELECT sender, receiver, text, media_url, timestamp FROM messages
         WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)
@@ -131,18 +106,15 @@ def get_history(user1, user2):
     conn.close()
 
     history = [
-        {"sender": r[0], "receiver": r[1], "text": r[2], "media_url": r[3], "timestamp": r[4]}
+        {"sender": r[0], "receiver": r[1], "text": r[2], "media_url": r[3], "timestamp": str(r[4])}
         for r in rows
     ]
     return jsonify(history)
-
-# --- СОКЕТЫ (SOCKET.IO ДЛЯ WEBRTC И ЧАТА В РЕАЛЬНОМ ВРЕМЕНИ) ---
 
 @socketio.on('register_socket')
 def handle_register_socket(username):
     active_users[username] = request.sid
     join_room(username)
-    print(f"Пользователь {username} онлайн в Socket.IO")
 
 @socketio.on('send_message')
 def handle_send_message(data):
@@ -151,48 +123,26 @@ def handle_send_message(data):
     text = data.get('text', '')
     media_url = data.get('media_url', '')
 
-    # Сохраняем сообщение в БД
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db()
     cursor.execute("INSERT INTO messages (sender, receiver, text, media_url) VALUES (?, ?, ?, ?)",
                    (sender, receiver, text, media_url))
     conn.commit()
     conn.close()
 
-    payload = {
-        "sender": sender,
-        "receiver": receiver,
-        "text": text,
-        "media_url": media_url
-    }
+    payload = {"sender": sender, "receiver": receiver, "text": text, "media_url": media_url}
 
-    # Отправляем получателю, если он онлайн
     receiver_sid = active_users.get(receiver)
     if receiver_sid:
         emit('receive_message', payload, room=receiver_sid)
-    
-    # Отправляем подтверждение отправителю
     emit('receive_message', payload, room=request.sid)
 
 @socketio.on('signal')
 def handle_signal(data):
-    # Сигнализация для WebRTC (передача файлов P2P)
     target = data.get('target')
     target_sid = active_users.get(target)
     if target_sid:
-        emit('signal', {
-            'sender': data.get('sender'),
-            'signal': data.get('signal')
-        }, room=target_sid)
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    for username, sid in list(active_users.items()):
-        if sid == request.sid:
-            del active_users[username]
-            print(f"Пользователь {username} оффлайн")
-            break
+        emit('signal', {'sender': data.get('sender'), 'signal': data.get('signal')}, room=target_sid)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5001))
-    socketio.run(app, host='0.0.0.0', port=port, debug=True)
+    socketio.run(app, host='0.0.0.0', port=port)
