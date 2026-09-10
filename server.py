@@ -7,8 +7,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'nexus_secret_key_2026'
 
 # Инициализация Socket.IO
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
-
+cursor.execute("SELECT username, avatar FROM users WHERE username = ?", (username,))
 # Указываем путь к папке проекта
 FOLDER_PATH = r"X:\python project\видео редактор"
 DB_PATH = os.path.join(FOLDER_PATH, "messenger.db")
