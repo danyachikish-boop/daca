@@ -3,15 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NexusChat - Modern Messenger</title>
-    
+    <title>NexusChat - Realtime Messenger</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                    },
                     colors: {
                         brand: {
                             50: '#eef2ff',
@@ -19,1129 +27,841 @@
                             500: '#6366f1',
                             600: '#4f46e5',
                             700: '#4338ca',
-                        }
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
+                            900: '#312e81',
+                        },
+                        darkbg: '#0f172a',
+                        darkcard: '#1e293b',
+                        darkhover: '#334155'
                     }
                 }
             }
         }
     </script>
-    
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.4); border-radius: 9999px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(156, 163, 175, 0.6); }
-        .chat-bubble-incoming { border-bottom-left-radius: 4px; }
-        .chat-bubble-outgoing { border-bottom-right-radius: 4px; }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.3);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(156, 163, 175, 0.5);
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.2s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .pulse-online {
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            animation: pulse-green 2s infinite;
+        }
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
     </style>
 </head>
-<body class="bg-gray-100 dark:bg-slate-950 text-gray-800 dark:text-gray-100 antialiased h-screen overflow-hidden select-none">
+<body class="bg-slate-950 text-slate-100 font-sans antialiased h-screen overflow-hidden flex flex-col selection:bg-brand-500 selection:text-white">
 
-    <!-- Hidden File Input for uploading from computer -->
-    <input type="file" id="chatFileInput" class="hidden" onchange="window.handleFileSelected(event)">
-
-    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
-
-    <div class="flex h-screen w-screen overflow-hidden">
-        
-        <!-- Left Navigation Sidebar -->
-        <div class="w-16 sm:w-20 bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 flex flex-col items-center justify-between py-5 z-20 shrink-0">
-            <div class="flex flex-col items-center space-y-6 w-full">
-                <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-brand-500/30">
-                    <i class="fa-solid fa-paper-plane"></i>
+    <!-- AUTH MODAL OVERLAY (Login & Register) -->
+    <div id="auth-overlay" class="fixed inset-0 bg-slate-950/90 backdrop-blur-xl z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-8 shadow-2xl animate-fade-in relative">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-2xl mx-auto flex items-center justify-center text-2xl font-bold text-white shadow-lg mb-3">
+                    <i class="fa-solid fa-comments"></i>
                 </div>
-
-                <nav class="flex flex-col space-y-3 w-full px-2">
-                    <button class="w-full py-3 rounded-2xl bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 flex justify-center transition-all">
-                        <i class="fa-solid fa-message text-lg"></i>
-                    </button>
-                    <button onclick="window.showToast('Раздел вызовов')" class="w-full py-3 rounded-2xl text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-600 dark:hover:text-gray-200 flex justify-center transition-all">
-                        <i class="fa-solid fa-phone text-lg"></i>
-                    </button>
-                    <button onclick="window.showToast('Контакты')" class="w-full py-3 rounded-2xl text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-600 dark:hover:text-gray-200 flex justify-center transition-all">
-                        <i class="fa-solid fa-address-book text-lg"></i>
-                    </button>
-                </nav>
+                <h2 class="text-2xl font-bold text-white">NexusChat</h2>
+                <p class="text-xs text-slate-400 mt-1">Мессенджер для реального общения</p>
             </div>
 
-            <div class="flex flex-col items-center space-y-4">
-                <button id="themeToggleBtn" class="w-10 h-10 rounded-xl bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-amber-400 hover:bg-gray-200 dark:hover:bg-slate-700 flex items-center justify-center transition-all" title="Переключить тему">
-                    <i id="themeIcon" class="fa-solid fa-sun text-lg"></i>
-                </button>
-                
-                <div id="userProfileBtnContainer" class="relative cursor-pointer" onclick="window.toggleAuthOrSettings()">
-                    <img id="userSidebarAvatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80" alt="Avatar" class="w-10 h-10 rounded-xl object-cover ring-2 ring-brand-500/50">
-                    <span id="userStatusBadge" class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Chat List Panel -->
-        <div id="chatListPanel" class="w-80 sm:w-96 bg-gray-50 dark:bg-slate-900/90 border-r border-gray-200 dark:border-slate-800 flex flex-col shrink-0 transition-all duration-300">
-            <div class="p-4 border-b border-gray-200 dark:border-slate-800/80 space-y-3">
-                <div class="flex items-center justify-between">
-                    <h1 class="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Сообщения</h1>
-                    <button onclick="window.openNewChatModal()" class="w-9 h-9 rounded-xl bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center shadow-md active:scale-95 transition-all" title="Новый чат">
-                        <i class="fa-solid fa-pen-to-square text-sm"></i>
-                    </button>
-                </div>
-
-                <!-- Search Input -->
-                <div class="relative">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-gray-400 text-xs"></i>
-                    <input id="chatSearchInput" type="text" placeholder="Поиск чатов и сообщений..." class="w-full bg-white dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700/60 rounded-xl pl-9 pr-4 py-2 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50 transition-all">
-                </div>
-
-                <!-- Filter Tabs -->
-                <div class="flex items-center space-x-1 pt-1 overflow-x-auto no-scrollbar">
-                    <button data-filter="all" class="filter-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white shadow-sm transition-all whitespace-nowrap">Все</button>
-                    <button data-filter="direct" class="filter-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-200 dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all whitespace-nowrap">Личные</button>
-                    <button data-filter="group" class="filter-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-200 dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all whitespace-nowrap">Группы</button>
-                    <button data-filter="channel" class="filter-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-200 dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all whitespace-nowrap">Каналы</button>
-                </div>
+            <!-- Auth Tabs -->
+            <div class="flex bg-slate-950 p-1 rounded-xl mb-6 border border-slate-800/80">
+                <button type="button" id="tab-btn-login" onclick="switchAuthTab('login')" class="flex-1 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white transition">Вход</button>
+                <button type="button" id="tab-btn-register" onclick="switchAuthTab('register')" class="flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition">Регистрация</button>
             </div>
 
-            <!-- Chat Items Container -->
-            <div id="chatItemsContainer" class="flex-1 overflow-y-auto divide-y divide-gray-100 dark:divide-slate-800/50">
-                <!-- Rendered Dynamically via JS -->
-            </div>
-        </div>
-
-        <!-- Active Chat Area -->
-        <div id="activeChatArea" class="flex-1 flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden relative">
-            <!-- Dynamic Content Rendered via JS -->
-        </div>
-
-        <!-- Right Info Sidebar -->
-        <div id="infoSidebar" class="hidden w-72 bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-slate-800 flex-col shrink-0 p-6 space-y-6">
-            <div class="flex items-center justify-between">
-                <h3 class="font-bold text-gray-900 dark:text-white text-sm">Профиль</h3>
-                <button onclick="window.toggleInfoSidebar()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-
-            <div class="flex flex-col items-center text-center">
-                <img id="infoAvatar" src="" class="w-20 h-20 rounded-2xl object-cover mb-3 shadow-md">
-                <h4 id="infoName" class="font-bold text-base text-gray-900 dark:text-white"></h4>
-                <p id="infoRole" class="text-xs text-gray-500 dark:text-gray-400 mt-0.5"></p>
-            </div>
-
-            <div class="space-y-4 text-xs">
+            <!-- Login Form -->
+            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
                 <div>
-                    <span class="text-gray-400 block mb-1">О себе</span>
-                    <p id="infoBio" class="text-gray-700 dark:text-gray-300 font-medium"></p>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Имя пользователя (Логин)</label>
+                    <input type="text" id="login-username" required placeholder="Введите ваш логин" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
                 </div>
                 <div>
-                    <span class="text-gray-400 block mb-1">Телефон / Юзернейм</span>
-                    <p id="infoHandle" class="text-brand-600 dark:text-brand-400 font-medium"></p>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Пароль</label>
+                    <input type="password" id="login-password" required placeholder="••••••••" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
                 </div>
-            </div>
-        </div>
+                <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition shadow-lg shadow-indigo-600/30">Войти в аккаунт</button>
+            </form>
 
-    </div>
-
-    <!-- Auth Modal (Registration & Login) -->
-    <div id="googleAuthModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative overflow-hidden">
-            <div class="flex justify-between items-center mb-6 border-b border-gray-200 dark:border-slate-800 pb-3">
-                <div class="flex space-x-4">
-                    <button id="tabRegisterBtn" onclick="window.switchAuthTab('register')" class="text-base font-bold text-brand-600 dark:text-brand-400 border-b-2 border-brand-600 pb-1 transition-all">Регистрация</button>
-                    <button id="tabLoginBtn" onclick="window.switchAuthTab('login')" class="text-base font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 pb-1 transition-all">Вход</button>
-                </div>
-                <button onclick="window.toggleAuthModal(false)" class="text-gray-400 hover:text-gray-600 dark:hover:text-white text-sm">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-
-            <form id="customAuthForm" onsubmit="window.handleAuthSubmit(event)" class="space-y-4">
-                <!-- Avatar Selection Area (Registration only) -->
-                <div id="avatarSelectField" class="space-y-1">
-                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400">Аватар профиля</label>
-                    <div class="flex items-center space-x-3 bg-gray-50 dark:bg-slate-800/50 p-2.5 rounded-2xl border border-gray-200 dark:border-slate-800">
-                        <img id="avatarPreview" src="https://api.dicebear.com/7.x/bottts/svg?seed=default" class="w-12 h-12 rounded-xl object-cover ring-2 ring-brand-500/40 bg-slate-900 shrink-0">
-                        <div class="flex flex-col space-y-1">
-                            <button type="button" onclick="document.getElementById('regAvatarInput').click()" class="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-200 text-xs font-medium rounded-xl transition-all border border-gray-200 dark:border-slate-700 flex items-center space-x-1.5 shadow-sm">
-                                <i class="fa-solid fa-camera text-brand-500"></i>
-                                <span>Загрузить аватарку</span>
-                            </button>
-                            <input type="file" id="regAvatarInput" accept="image/*" class="hidden" onchange="window.handleRegAvatarUpload(event)">
-                            <p class="text-[10px] text-gray-400">Выберите фото с компьютера</p>
-                        </div>
-                    </div>
-                </div>
-
+            <!-- Register Form -->
+            <form id="register-form" onsubmit="handleRegister(event)" class="space-y-4 hidden">
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Имя / Логин</label>
-                    <input id="authUsername" type="text" required placeholder="Alex_Ivanov" class="w-full bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500">
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Имя пользователя</label>
+                    <input type="text" id="reg-username" required placeholder="Придумайте уникальный логин" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
                 </div>
-
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Пароль</label>
-                    <input id="authPassword" type="password" required placeholder="••••••••" class="w-full bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500">
-                    <p class="text-[10px] text-gray-400 mt-1">Требования: мин. 5 символов, только латинские буквы и цифры</p>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Пароль</label>
+                    <input type="password" id="reg-password" required placeholder="Придумайте пароль" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
                 </div>
-
-                <!-- Complex Canvas Captcha -->
                 <div>
-                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Защитная капча</label>
-                    <div class="flex items-center space-x-2 mb-2">
-                        <canvas id="captchaCanvas" width="180" height="46" class="rounded-xl border border-gray-300 dark:border-slate-700 bg-slate-900 select-none"></canvas>
-                        <button type="button" onclick="window.generateCaptcha()" class="p-2.5 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors" title="Обновить капчу">
-                            <i class="fa-solid fa-rotate-right"></i>
-                        </button>
-                    </div>
-                    <input id="authCaptchaInput" type="text" required placeholder="Введите текст с картинки" class="w-full bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-brand-500">
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Цвет аватарки</label>
+                    <select id="reg-avatar" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition">
+                        <option value="from-indigo-500 to-purple-500">Индиго-Фиолетовый</option>
+                        <option value="from-blue-500 to-teal-400">Синий-Бирюзовый</option>
+                        <option value="from-emerald-500 to-teal-600">Изумрудный</option>
+                        <option value="from-rose-500 to-pink-600">Розовый</option>
+                        <option value="from-amber-500 to-orange-600">Янтарный</option>
+                    </select>
                 </div>
-
-                <div id="authErrorMsg" class="hidden text-xs text-rose-500 font-medium bg-rose-500/10 p-2.5 rounded-xl border border-rose-500/20"></div>
-
-                <button type="submit" id="authSubmitBtn" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs sm:text-sm rounded-xl transition-all shadow-md active:scale-95">
-                    Зарегистрироваться
-                </button>
+                <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition shadow-lg shadow-indigo-600/30">Зарегистрироваться</button>
             </form>
         </div>
     </div>
 
-    <!-- Account Settings Modal -->
-    <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl">
-            <div class="flex justify-between items-center mb-5">
-                <h3 class="font-bold text-gray-900 dark:text-white text-base">Управление аккаунтом</h3>
-                <button onclick="window.toggleSettingsModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
+    <!-- App Container -->
+    <div id="app" class="flex h-full w-full relative overflow-hidden">
+        
+        <!-- Mobile Sidebar Overlay -->
+        <div id="sidebar-backdrop" onclick="toggleMobileSidebar()" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-20 hidden md:hidden transition-opacity"></div>
 
-            <div class="flex flex-col items-center text-center mb-6">
-                <!-- Clickable Avatar with hover overlay -->
-                <div class="relative group cursor-pointer mb-3" onclick="document.getElementById('changeAvatarInput').click()" title="Нажмите, чтобы изменить аватар">
-                    <img id="settingsUserAvatar" src="" class="w-20 h-20 rounded-2xl object-cover ring-2 ring-brand-500 shadow-md transition-all group-hover:brightness-75">
-                    <div class="absolute inset-0 bg-black/50 rounded-2xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs">
-                        <i class="fa-solid fa-camera text-lg mb-1"></i>
-                        <span class="text-[10px] font-medium">Сменить</span>
+        <!-- Left Sidebar: Chat List -->
+        <aside id="sidebar" class="fixed md:relative z-30 w-80 md:w-80 lg:w-96 h-full bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 transform -translate-x-full md:translate-x-0">
+            
+            <!-- User Header Profile -->
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+                <div class="flex items-center space-x-3 cursor-pointer" onclick="openProfileModal()">
+                    <div class="relative">
+                        <div id="my-avatar" class="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-white shadow-lg">
+                            ?
+                        </div>
+                        <span class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-slate-900 rounded-full pulse-online"></span>
+                    </div>
+                    <div>
+                        <h2 id="my-name-display" class="font-bold text-slate-100 text-sm flex items-center gap-1.5">
+                            Загрузка...
+                        </h2>
+                        <p id="my-status-display" class="text-xs text-slate-400 truncate max-w-[140px]">В сети</p>
                     </div>
                 </div>
-                <input type="file" id="changeAvatarInput" accept="image/*" class="hidden" onchange="window.handleSettingsAvatarChange(event)">
-
-                <h4 id="settingsUserName" class="font-bold text-gray-900 dark:text-white text-sm"></h4>
-                <p id="settingsUserEmail" class="text-xs text-gray-400 mt-0.5"></p>
+                <div class="flex items-center space-x-1">
+                    <button onclick="openNewChatModal()" class="w-9 h-9 rounded-full bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600 hover:text-white transition flex items-center justify-center" title="Найти собеседника">
+                        <i class="fa-solid fa-user-plus"></i>
+                    </button>
+                    <button onclick="logout()" class="w-9 h-9 rounded-full hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition flex items-center justify-center" title="Выйти из аккаунта">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                </div>
             </div>
 
-            <button onclick="window.signOutGoogle()" class="w-full py-2.5 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-semibold text-xs transition-all flex items-center justify-center space-x-2">
-                <i class="fa-solid fa-right-from-bracket"></i>
-                <span>Выйти из аккаунта</span>
+            <!-- Search Bar -->
+            <div class="p-3 border-b border-slate-800/60">
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm"></i>
+                    <input type="text" id="search-input" oninput="filterChats()" placeholder="Поиск в вашем списке..." class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition">
+                </div>
+            </div>
+
+            <!-- Chat Filter Tabs -->
+            <div class="flex border-b border-slate-800 text-xs font-medium text-slate-400 px-3 pt-2 gap-2">
+                <button onclick="setTab('all')" id="tab-all" class="px-3 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-400 font-semibold transition">Все чаты</button>
+                <button onclick="setTab('active')" id="tab-active" class="px-3 py-1.5 rounded-lg hover:bg-slate-800 transition">Активные</button>
+            </div>
+
+            <!-- Chat Scroll Area -->
+            <div id="chat-list" class="flex-1 overflow-y-auto p-2 space-y-1">
+                <!-- Chat items populated dynamically -->
+            </div>
+
+            <!-- Sidebar Footer Stats -->
+            <div class="p-3 border-t border-slate-800 text-[11px] text-slate-500 flex justify-between items-center bg-slate-950/40">
+                <span id="socket-status" class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Подключение...</span>
+                <span id="chat-count">0 диалогов</span>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="flex-1 flex flex-col h-full bg-slate-950 relative overflow-hidden">
+            
+            <!-- Top Navbar for Active Chat -->
+            <header id="chat-header" class="h-16 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md px-4 flex items-center justify-between z-10">
+                <div class="flex items-center space-x-3">
+                    <button onclick="toggleMobileSidebar()" class="md:hidden w-8 h-8 rounded-lg bg-slate-800 text-slate-300 flex items-center justify-center">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    
+                    <div id="header-avatar-container" class="relative">
+                        <div id="header-avatar" class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white shadow-md">
+                            ?
+                        </div>
+                        <span id="header-status-dot" class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-slate-900 rounded-full"></span>
+                    </div>
+
+                    <div>
+                        <h3 id="header-name" class="font-bold text-slate-100 text-sm flex items-center gap-2">
+                            Выберите или найдите чат
+                        </h3>
+                        <p id="header-status-text" class="text-xs text-slate-400">---</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    <button onclick="startCall('audio')" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center justify-center" title="Голосовой звонок">
+                        <i class="fa-solid fa-phone text-sm"></i>
+                    </button>
+                    <button onclick="startCall('video')" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center justify-center" title="Видеозвонок">
+                        <i class="fa-solid fa-video text-sm"></i>
+                    </button>
+                    <div class="h-5 w-[1px] bg-slate-800 mx-1"></div>
+                    <button onclick="toggleChatDetails()" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center justify-center" title="Информация">
+                        <i class="fa-solid fa-circle-info text-sm"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Messages Stream -->
+            <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900/40 via-slate-950 to-slate-950">
+                <div class="h-full flex items-center justify-center text-slate-500 text-sm flex-col space-y-3">
+                    <i class="fa-regular fa-comments text-4xl opacity-30"></i>
+                    <p>Выберите собеседника для начала диалога</p>
+                </div>
+            </div>
+
+            <!-- Input Toolbar & Form -->
+            <div class="p-3 md:p-4 border-t border-slate-800 bg-slate-900/90 backdrop-blur-md relative">
+                
+                <!-- Quick Emoji Picker -->
+                <div id="emoji-picker" class="hidden absolute bottom-full left-4 mb-2 p-2 bg-slate-800 border border-slate-700 rounded-2xl shadow-xl flex gap-2 animate-fade-in z-20">
+                    <button onclick="insertEmoji('👍')" class="hover:scale-125 transition text-lg">👍</button>
+                    <button onclick="insertEmoji('❤️')" class="hover:scale-125 transition text-lg">❤️</button>
+                    <button onclick="insertEmoji('😂')" class="hover:scale-125 transition text-lg">😂</button>
+                    <button onclick="insertEmoji('🔥')" class="hover:scale-125 transition text-lg">🔥</button>
+                    <button onclick="insertEmoji('😎')" class="hover:scale-125 transition text-lg">😎</button>
+                    <button onclick="insertEmoji('🎉')" class="hover:scale-125 transition text-lg">🎉</button>
+                    <button onclick="insertEmoji('👋')" class="hover:scale-125 transition text-lg">👋</button>
+                </div>
+
+                <form id="message-form" onsubmit="handleSendMessage(event)" class="flex items-center space-x-2">
+                    <button type="button" onclick="toggleEmojiPicker()" class="p-2 text-slate-400 hover:text-indigo-400 transition rounded-xl hover:bg-slate-800">
+                        <i class="fa-regular fa-face-smile text-lg"></i>
+                    </button>
+
+                    <input type="text" id="message-input" autocomplete="off" placeholder="Напишите сообщение..." class="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition">
+
+                    <button type="submit" class="w-11 h-11 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl flex items-center justify-center transition shadow-lg shadow-indigo-600/30 flex-shrink-0">
+                        <i class="fa-solid fa-paper-plane text-sm"></i>
+                    </button>
+                </form>
+            </div>
+        </main>
+
+        <!-- Right Details Sidepanel -->
+        <div id="details-panel" class="hidden lg:flex w-72 h-full bg-slate-900 border-l border-slate-800 flex-col p-4 space-y-6">
+            <div class="text-center pt-4">
+                <div id="details-avatar" class="w-20 h-20 rounded-full bg-indigo-600 mx-auto flex items-center justify-center font-bold text-2xl text-white shadow-xl mb-3">
+                    ?
+                </div>
+                <h4 id="details-name" class="font-bold text-slate-100">Пользователь</h4>
+                <p id="details-status" class="text-xs text-slate-400 mt-1">онлайн</p>
+            </div>
+
+            <div class="border-t border-slate-800 pt-4 space-y-2 text-xs">
+                <button onclick="clearChatHistory()" class="w-full text-left py-2 px-3 rounded-lg hover:bg-slate-800 text-red-400 transition flex items-center gap-2">
+                    <i class="fa-solid fa-trash"></i> Очистить диалог
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Add New Friend / Real User Search -->
+    <div id="modal-new-chat" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md p-6 shadow-2xl animate-fade-in relative">
+            <button onclick="closeModal('modal-new-chat')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            
+            <div class="flex items-center space-x-3 mb-6">
+                <div class="w-10 h-10 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-user-plus"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-100">Найти зарегистрированного человека</h3>
+                    <p class="text-xs text-slate-400">Введите точный логин пользователя в базе</p>
+                </div>
+            </div>
+
+            <form onsubmit="handleFindUser(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Имя пользователя (username)</label>
+                    <input type="text" id="find-username-input" required placeholder="Например: alex, danya, vlad..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition">
+                </div>
+
+                <div id="find-user-result" class="hidden p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300">
+                    <!-- Search result dynamically populated -->
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal('modal-new-chat')" class="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-400 hover:bg-slate-800 transition">Отмена</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition shadow-lg shadow-indigo-600/30">Найти и открыть чат</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Call Screen -->
+    <div id="modal-call" class="fixed inset-0 bg-slate-950/90 backdrop-blur-lg z-50 hidden flex flex-col items-center justify-between p-8">
+        <div class="text-center pt-8">
+            <div id="call-avatar" class="w-28 h-28 rounded-full bg-indigo-600 mx-auto flex items-center justify-center font-bold text-4xl text-white shadow-2xl mb-4 animate-pulse">
+                ?
+            </div>
+            <h2 id="call-name" class="text-2xl font-bold text-white">Имя</h2>
+            <p id="call-status" class="text-sm text-indigo-400 mt-1">Звонок...</p>
+        </div>
+
+        <div class="flex items-center space-x-6 pb-8">
+            <button onclick="endCall()" class="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 text-white text-2xl flex items-center justify-center shadow-lg shadow-red-600/40 transition hover:scale-110">
+                <i class="fa-solid fa-phone-slash"></i>
             </button>
         </div>
     </div>
 
-    <!-- New Chat Modal -->
-    <div id="newChatModal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl">
-            <div class="flex justify-between items-center mb-5">
-                <h3 class="font-bold text-gray-900 dark:text-white text-base">Создать новый чат</h3>
-                <button onclick="window.closeNewChatModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-white">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Название или имя</label>
-                    <input id="newChatNameInput" type="text" placeholder="например: Иван Петров или Рабочий Чат" class="w-full bg-gray-100 dark:bg-slate-800 border border-transparent focus:border-brand-500 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-white outline-none">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Тип разговора</label>
-                    <select id="newChatTypeSelect" class="w-full bg-gray-100 dark:bg-slate-800 border border-transparent focus:border-brand-500 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-white outline-none">
-                        <option value="direct">Личный чат</option>
-                        <option value="group">Группа</option>
-                        <option value="channel">Канал</option>
-                    </select>
-                </div>
-                <button onclick="window.createNewChat()" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold shadow-md transition-all mt-2">
-                    Создать диалог
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Audio/Video Call Modal -->
-    <div id="callModal" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-lg flex items-center justify-center p-4">
-        <div class="flex flex-col items-center text-center space-y-6">
-            <div class="relative">
-                <img id="callAvatar" src="" class="w-28 h-28 rounded-full object-cover ring-4 ring-brand-500/40 animate-pulse">
-                <span class="absolute bottom-1 right-1 w-5 h-5 bg-emerald-500 border-2 border-slate-950 rounded-full"></span>
-            </div>
-            <div>
-                <h3 id="callName" class="text-xl font-bold text-white"></h3>
-                <p id="callTypeStatus" class="text-xs text-brand-400 mt-1">Звонок...</p>
-            </div>
-            <div class="flex items-center space-x-6 pt-6">
-                <button onclick="window.endCall()" class="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center text-xl shadow-lg transition-all active:scale-90">
-                    <i class="fa-solid fa-phone-slash"></i>
-                </button>
-            </div>
-        </div>
-    </div>
+    <!-- Toast Notification Popup -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
     <script>
-        let activeChatId = null;
-        let activeFilter = 'all';
-        let authMode = 'register';
-        let currentCaptchaCode = '';
-        let customUploadedAvatar = null;
+        // Global App State
+        const state = {
+            currentUser: null, // { username, avatar }
+            activeChatUser: null, // username string
+            chats: [], // [{ username, avatar, lastMessage, unread, messages: [] }]
+            activeTab: 'all',
+            searchQuery: ''
+        };
 
-        // Initial empty chats list
-        const chats = [];
+        let socket = null;
 
-        // Registered accounts mock DB
-        const registeredUsers = {};
+        // Initialize Audio Sound FX
+        const AudioFX = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            },
+            playPop() {
+                try {
+                    this.init();
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.08);
+                } catch(e) {}
+            },
+            playReceive() {
+                try {
+                    this.init();
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+                    osc.frequency.setValueAtTime(880, this.ctx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.25);
+                } catch(e) {}
+            }
+        };
 
-        // User Account State
-        let currentUser = null;
+        // --- AUTH & SESSION LOGIC ---
+        function switchAuthTab(tab) {
+            const loginForm = document.getElementById('login-form');
+            const regForm = document.getElementById('register-form');
+            const loginBtn = document.getElementById('tab-btn-login');
+            const regBtn = document.getElementById('tab-btn-register');
 
-        function renderChatList() {
-            const container = document.getElementById('chatItemsContainer');
-            if (!container) return;
+            if (tab === 'login') {
+                loginForm.classList.remove('hidden');
+                regForm.classList.add('hidden');
+                loginBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white transition';
+                regBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition';
+            } else {
+                loginForm.classList.add('hidden');
+                regForm.classList.remove('hidden');
+                regBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg bg-indigo-600 text-white transition';
+                loginBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition';
+            }
+        }
 
-            const query = (document.getElementById('chatSearchInput')?.value || '').toLowerCase();
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value.trim();
 
-            const filtered = chats.filter(chat => {
-                const matchesFilter = activeFilter === 'all' || chat.type === activeFilter;
-                const matchesQuery = chat.name.toLowerCase().includes(query);
-                return matchesFilter && matchesQuery;
+            if (!username || !password) return;
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    onAuthSuccess(data.user);
+                } else {
+                    showToast(data.message || ' Ошибка входа', 'error');
+                }
+            } catch(err) {
+                // Fallback for offline testing without python server active
+                onAuthSuccess({ username: username, avatar: 'from-indigo-500 to-purple-500' });
+            }
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const username = document.getElementById('reg-username').value.trim();
+            const password = document.getElementById('reg-password').value.trim();
+            const avatar = document.getElementById('reg-avatar').value;
+
+            if (!username || !password) return;
+
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, avatar })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showToast('Успешная регистрация!', 'success');
+                    onAuthSuccess(data.user);
+                } else {
+                    showToast(data.message || 'Ошибка регистрации', 'error');
+                }
+            } catch(err) {
+                // Fallback for testing without server
+                onAuthSuccess({ username: username, avatar: avatar });
+            }
+        }
+
+        function onAuthSuccess(user) {
+            state.currentUser = user;
+            localStorage.setItem('nexus_user', JSON.stringify(user));
+            
+            document.getElementById('auth-overlay').classList.add('hidden');
+            document.getElementById('my-name-display').innerText = user.username;
+            
+            const myAvatarEl = document.getElementById('my-avatar');
+            myAvatarEl.className = `w-10 h-10 rounded-full bg-gradient-to-tr ${user.avatar || 'from-indigo-500 to-purple-500'} flex items-center justify-center font-bold text-white shadow-lg`;
+            myAvatarEl.innerText = user.username.charAt(0).toUpperCase();
+
+            initSocketIO();
+            loadSavedContacts();
+        }
+
+        function logout() {
+            localStorage.removeItem('nexus_user');
+            state.currentUser = null;
+            state.chats = [];
+            state.activeChatUser = null;
+            document.getElementById('auth-overlay').classList.remove('hidden');
+            if (socket) socket.disconnect();
+        }
+
+        // --- REALTIME SOCKET.IO CONNECTION ---
+        function initSocketIO() {
+            try {
+                socket = io();
+
+                socket.on('connect', () => {
+                    document.getElementById('socket-status').innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500 pulse-online"></span> Сеть: Онлайн';
+                    if (state.currentUser) {
+                        socket.emit('register_socket', state.currentUser.username);
+                    }
+                });
+
+                socket.on('disconnect', () => {
+                    document.getElementById('socket-status').innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span> Офлайн';
+                });
+
+                // Listen to incoming messages
+                socket.on('receive_message', (data) => {
+                    handleIncomingMessage(data);
+                });
+
+            } catch(e) {
+                console.warn('Socket.IO fail to connect directly', e);
+            }
+        }
+
+        // --- CHAT & MESSAGING LOGIC ---
+        function loadSavedContacts() {
+            const saved = localStorage.getItem(`nexus_chats_${state.currentUser.username}`);
+            if (saved) {
+                try {
+                    state.chats = JSON.parse(saved);
+                } catch(e) {
+                    state.chats = [];
+                }
+            }
+            renderChatList();
+        }
+
+        function saveContacts() {
+            if (!state.currentUser) return;
+            localStorage.setItem(`nexus_chats_${state.currentUser.username}`, JSON.stringify(state.chats));
+        }
+
+        async function openChatWithUser(targetUsername, targetAvatar = '') {
+            let existingChat = state.chats.find(c => c.username === targetUsername);
+            
+            if (!existingChat) {
+                existingChat = {
+                    username: targetUsername,
+                    avatar: targetAvatar || 'from-blue-500 to-teal-400',
+                    unread: 0,
+                    messages: []
+                };
+                state.chats.unshift(existingChat);
+            }
+
+            state.activeChatUser = targetUsername;
+            existingChat.unread = 0;
+
+            // Fetch actual history from Flask server API
+            try {
+                const res = await fetch(`/api/history/${encodeURIComponent(state.currentUser.username)}/${encodeURIComponent(targetUsername)}`);
+                if (res.ok) {
+                    const history = await res.json();
+                    existingChat.messages = history;
+                }
+            } catch(e) {
+                console.log('Unable to fetch history from server, using local history');
+            }
+
+            saveContacts();
+            renderChatList();
+            renderActiveChat();
+            closeModal('modal-new-chat');
+
+            // Close mobile sidebar
+            document.getElementById('sidebar').classList.add('-translate-x-full');
+            document.getElementById('sidebar-backdrop').classList.add('hidden');
+        }
+
+        function handleSendMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('message-input');
+            const text = input.value.trim();
+
+            if (!text || !state.activeChatUser || !state.currentUser) return;
+
+            const payload = {
+                sender: state.currentUser.username,
+                receiver: state.activeChatUser,
+                text: text,
+                media_url: '',
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+
+            // Emit to server via SocketIO
+            if (socket && socket.connected) {
+                socket.emit('send_message', payload);
+            } else {
+                // Fallback for standalone UI without active python backend
+                handleIncomingMessage(payload);
+            }
+
+            input.value = '';
+            AudioFX.playPop();
+        }
+
+        function handleIncomingMessage(data) {
+            const isMe = data.sender === state.currentUser.username;
+            const otherUser = isMe ? data.receiver : data.sender;
+
+            let chat = state.chats.find(c => c.username === otherUser);
+            if (!chat) {
+                chat = {
+                    username: otherUser,
+                    avatar: 'from-emerald-500 to-teal-600',
+                    unread: 0,
+                    messages: []
+                };
+                state.chats.unshift(chat);
+            }
+
+            chat.messages.push({
+                sender: data.sender,
+                receiver: data.receiver,
+                text: data.text,
+                timestamp: data.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             });
+
+            if (state.activeChatUser === otherUser) {
+                renderActiveChat();
+            } else {
+                chat.unread = (chat.unread || 0) + 1;
+                AudioFX.playReceive();
+            }
+
+            saveContacts();
+            renderChatList();
+        }
+
+        // --- RENDER FUNCTIONS ---
+        function renderChatList() {
+            const container = document.getElementById('chat-list');
+            container.innerHTML = '';
+
+            const filtered = state.chats.filter(c => c.username.toLowerCase().includes(state.searchQuery.toLowerCase()));
+
+            document.getElementById('chat-count').innerText = `${state.chats.length} диалогов`;
 
             if (filtered.length === 0) {
                 container.innerHTML = `
-                    <div class="p-8 text-center text-gray-400 dark:text-gray-500">
-                        <i class="fa-solid fa-comments text-3xl mb-3 block opacity-40"></i>
-                        <p class="text-xs font-medium">Чатов не найдено</p>
-                        <p class="text-[10px] mt-1 text-gray-400">Нажмите "+", чтобы создать диалог</p>
+                    <div class="text-center py-8 text-slate-500 text-xs">
+                        <i class="fa-solid fa-users-slash text-2xl mb-2 block opacity-40"></i>
+                        Нет активных чатов
                     </div>
                 `;
                 return;
             }
 
-            container.innerHTML = filtered.map(chat => {
-                const isActive = chat.id === activeChatId;
+            filtered.forEach(chat => {
                 const lastMsg = chat.messages[chat.messages.length - 1];
-                const lastMsgText = lastMsg ? (lastMsg.type === 'image' ? '📷 Изображение' : lastMsg.text) : 'Нет сообщений';
-                const lastMsgTime = lastMsg ? lastMsg.time : '';
-                const badgeType = chat.type === 'group' ? '👥' : chat.type === 'channel' ? '📢' : '👤';
+                const lastText = lastMsg ? (lastMsg.sender === state.currentUser.username ? `Вы: ${lastMsg.text}` : lastMsg.text) : 'Нет сообщений';
+                const isActive = chat.username === state.activeChatUser;
+                const initials = chat.username.substring(0, 1).toUpperCase();
 
-                return `
-                    <div onclick="selectChat('${chat.id}')" class="p-3.5 flex items-center space-x-3 cursor-pointer transition-all hover:bg-gray-100 dark:hover:bg-slate-800/60 ${isActive ? 'bg-brand-50/80 dark:bg-brand-500/10 border-l-4 border-brand-600 dark:border-brand-500' : ''}">
-                        <div class="relative shrink-0">
-                            <img src="${chat.avatar}" alt="${chat.name}" class="w-12 h-12 rounded-2xl object-cover">
-                            ${chat.online ? '<span class="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-slate-900 rounded-full"></span>' : ''}
+                const item = document.createElement('div');
+                item.className = `p-3 rounded-2xl cursor-pointer transition flex items-center justify-between group ${
+                    isActive ? 'bg-indigo-600/20 border border-indigo-500/30' : 'hover:bg-slate-800/60'
+                }`;
+                item.onclick = () => openChatWithUser(chat.username, chat.avatar);
+
+                item.innerHTML = `
+                    <div class="flex items-center space-x-3 overflow-hidden">
+                        <div class="relative flex-shrink-0">
+                            <div class="w-11 h-11 rounded-full bg-gradient-to-tr ${chat.avatar || 'from-indigo-500 to-purple-500'} flex items-center justify-center font-bold text-white shadow-md">
+                                ${initials}
+                            </div>
+                            <span class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-slate-900 rounded-full"></span>
                         </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center justify-between mb-1">
-                                <h4 class="text-xs font-semibold text-gray-900 dark:text-white truncate flex items-center gap-1.5">
-                                    <span class="text-[10px] text-gray-400">${badgeType}</span>
-                                    <span>${chat.name}</span>
-                                </h4>
-                                <span class="text-[10px] text-gray-400 shrink-0">${lastMsgTime}</span>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <p class="text-xs text-gray-500 dark:text-gray-400 truncate">${lastMsgText}</p>
-                                ${chat.unread > 0 ? `<span class="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-brand-600 text-white">${chat.unread}</span>` : ''}
-                            </div>
+                        <div class="overflow-hidden">
+                            <h4 class="font-bold text-slate-200 text-xs truncate group-hover:text-white">${chat.username}</h4>
+                            <p class="text-[11px] text-slate-400 truncate mt-0.5">${lastText}</p>
                         </div>
                     </div>
+                    <div class="flex flex-col items-end space-y-1 flex-shrink-0 ml-2">
+                        <span class="text-[10px] text-slate-500">${lastMsg ? (lastMsg.timestamp || '') : ''}</span>
+                        ${chat.unread > 0 ? `<span class="px-1.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold">${chat.unread}</span>` : ''}
+                    </div>
                 `;
-            }).join('');
-        }
-
-        function updateInfoSidebar(chat) {
-            if (!chat) return;
-            const avatar = document.getElementById('infoAvatar');
-            const name = document.getElementById('infoName');
-            const role = document.getElementById('infoRole');
-            const bio = document.getElementById('infoBio');
-            const handle = document.getElementById('infoHandle');
-
-            if (avatar) avatar.src = chat.avatar;
-            if (name) name.textContent = chat.name;
-            if (role) role.textContent = chat.role || 'Пользователь';
-            if (bio) bio.textContent = chat.bio || '—';
-            if (handle) handle.textContent = chat.handle || '@' + chat.name.toLowerCase().replace(/\s+/g, '_');
+                container.appendChild(item);
+            });
         }
 
         function renderActiveChat() {
-            const area = document.getElementById('activeChatArea');
-            if (!area) return;
+            if (!state.activeChatUser) return;
 
-            const chat = chats.find(c => c.id === activeChatId);
+            const chat = state.chats.find(c => c.username === state.activeChatUser);
+            if (!chat) return;
 
-            if (!chat) {
-                area.innerHTML = `
-                    <div class="flex-1 flex flex-col items-center justify-center p-8 text-center bg-gray-50/50 dark:bg-slate-950/40">
-                        <div class="w-16 h-16 rounded-3xl bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center text-2xl mb-4 shadow-sm">
-                            <i class="fa-regular fa-paper-plane"></i>
-                        </div>
-                        <h3 class="text-base font-bold text-gray-900 dark:text-white mb-1">Выберите диалог</h3>
-                        <p class="text-xs text-gray-400 max-w-xs">Выберите чат из списка слева или создайте новый для начала переписки</p>
-                        <button onclick="window.openNewChatModal()" class="mt-4 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium rounded-xl transition-all shadow-md">
-                            + Новый чат
-                        </button>
-                    </div>
-                `;
-                return;
-            }
-
-            updateInfoSidebar(chat);
-
-            const messagesHTML = chat.messages.map(msg => {
-                const isMe = msg.sender === 'me';
-                return `
-                    <div class="flex ${isMe ? 'justify-end' : 'justify-start'} mb-3">
-                        <div class="max-w-[80%] sm:max-w-[70%] ${isMe ? 'bg-brand-600 text-white chat-bubble-outgoing' : 'bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-gray-100 chat-bubble-incoming'} p-3 rounded-2xl shadow-sm">
-                            ${msg.type === 'image' ? `
-                                <img src="${msg.mediaUrl}" class="rounded-xl mb-2 max-h-60 w-full object-cover">
-                            ` : msg.type === 'file' ? `
-                                <div class="flex items-center space-x-3 bg-black/10 dark:bg-white/10 p-2.5 rounded-xl mb-1">
-                                    <i class="fa-solid fa-file-arrow-down text-xl text-brand-400"></i>
-                                    <div class="min-w-0 flex-1">
-                                        <p class="text-xs font-semibold truncate">${msg.fileName || 'Файл'}</p>
-                                        <p class="text-[9px] opacity-75">${msg.fileSize || ''}</p>
-                                    </div>
-                                </div>
-                            ` : ''}
-                            ${msg.text ? `<p class="text-xs leading-relaxed break-words">${msg.text}</p>` : ''}
-                            <span class="block text-[9px] ${isMe ? 'text-indigo-200 text-right' : 'text-gray-400'} mt-1">${msg.time}</span>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            area.innerHTML = `
-                <!-- Messages Container (Header bar removed) -->
-                <div class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50/50 dark:bg-slate-950/20" id="messagesContainer">
-                    ${messagesHTML}
-                    <div id="typingIndicator" class="hidden flex items-center space-x-2 text-gray-400 text-xs py-2">
-                        <span class="w-2 h-2 rounded-full bg-brand-500 animate-bounce"></span>
-                        <span class="w-2 h-2 rounded-full bg-brand-500 animate-bounce delay-100"></span>
-                        <span class="w-2 h-2 rounded-full bg-brand-500 animate-bounce delay-200"></span>
-                        <span class="text-[11px] font-medium ml-1">${chat.name} печатает...</span>
-                    </div>
-                </div>
-
-                <!-- Chat Input Footer -->
-                <div class="p-3 border-t border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 relative">
-                    
-                    <!-- Emoji Picker Popover -->
-                    <div id="emojiPicker" class="hidden absolute bottom-16 left-4 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl p-3 shadow-xl z-30 grid grid-cols-6 gap-2 text-lg">
-                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('😊')">😊</span>
-                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('👍')">👍</span>
-                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('❤️')">❤️</span>
-                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('🔥')">🔥</span>
-                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('🎉')">🎉</span>
-                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('😂')">😂</span>
-                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('🙌')">🙌</span>
-                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('🚀')">🚀</span>
-                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('✨')">✨</span>
-                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('😎')">😎</span>
-                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('🤝')">🤝</span>
-                        <span class="cursor-pointer hover:scale-125 transition-transform" onclick="window.insertEmoji('💡')">💡</span>
-                    </div>
-
-                    <form onsubmit="window.handleSendMessage(event)" class="flex items-center space-x-2">
-                        <button type="button" id="toggleEmojiBtn" onclick="window.toggleEmojiPicker(event)" class="text-gray-400 hover:text-brand-500 p-2 transition-colors text-base">
-                            <i class="fa-regular fa-face-smile"></i>
-                        </button>
-                        <button type="button" onclick="window.handleAttachFile()" class="text-gray-400 hover:text-brand-500 p-2 transition-colors text-base">
-                            <i class="fa-solid fa-paperclip"></i>
-                        </button>
-                        <input id="messageInput" type="text" placeholder="Напишите сообщение..." class="flex-1 bg-gray-100 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700/60 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500">
-                        <button type="button" onclick="window.recordVoiceNote()" class="text-gray-400 hover:text-brand-500 p-2 transition-colors text-base">
-                            <i class="fa-solid fa-microphone"></i>
-                        </button>
-                        <button type="submit" class="w-10 h-10 rounded-xl bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center shadow-md active:scale-95 transition-all">
-                            <i class="fa-solid fa-paper-plane text-xs"></i>
-                        </button>
-                    </form>
-                </div>
-            `;
-
-            const container = document.getElementById('messagesContainer');
-            if (container) container.scrollTop = container.scrollHeight;
-        }
-
-        window.insertEmoji = function(emoji) {
-            const input = document.getElementById('messageInput');
-            if (input) {
-                input.value += emoji;
-                input.focus();
-            }
-            const picker = document.getElementById('emojiPicker');
-            if (picker) picker.classList.add('hidden');
-        };
-
-        function generateCaptchaCode(length = 6) {
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-            let res = '';
-            for (let i = 0; i < length; i++) {
-                res += chars.charAt(floor(Math.random() * chars.length));
-            }
-            return res;
-        }
-
-        function floor(val) { return Math.floor(val); }
-
-        window.generateCaptcha = function() {
-            const canvas = document.getElementById('captchaCanvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Background distortion
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Generate code
-            currentCaptchaCode = generateCaptchaCode(6);
-
-            // Add background noise lines
-            for (let i = 0; i < 8; i++) {
-                ctx.strokeStyle = `rgba(${floor(Math.random()*255)}, ${floor(Math.random()*255)}, ${floor(Math.random()*255)}, 0.4)`;
-                ctx.lineWidth = Math.random() * 2 + 1;
-                ctx.beginPath();
-                ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
-                ctx.bezierCurveTo(
-                    Math.random() * canvas.width, Math.random() * canvas.height,
-                    Math.random() * canvas.width, Math.random() * canvas.height,
-                    Math.random() * canvas.width, Math.random() * canvas.height
-                );
-                ctx.stroke();
-            }
-
-            // Draw noise dots
-            for (let i = 0; i < 60; i++) {
-                ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.5})`;
-                ctx.beginPath();
-                ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, Math.random() * 1.5, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            // Draw distorted characters
-            ctx.font = 'bold 22px Inter, sans-serif';
-            ctx.textBaseline = 'middle';
-
-            const startX = 15;
-            for (let i = 0; i < currentCaptchaCode.length; i++) {
-                const char = currentCaptchaCode[i];
-                ctx.save();
-                
-                const x = startX + i * 26 + (Math.random() * 4 - 2);
-                const y = canvas.height / 2 + (Math.random() * 8 - 4);
-                const angle = (Math.random() - 0.5) * 0.5; // Rotate angle
-
-                ctx.translate(x, y);
-                ctx.rotate(angle);
-
-                // Gradient per character
-                const grad = ctx.createLinearGradient(0, 0, 0, 20);
-                grad.addColorStop(0, '#818cf8');
-                grad.addColorStop(1, '#38bdf8');
-                ctx.fillStyle = grad;
-
-                ctx.fillText(char, 0, 0);
-                ctx.restore();
-            }
-        };
-
-        window.switchAuthTab = function(mode) {
-            authMode = mode;
-            const regBtn = document.getElementById('tabRegisterBtn');
-            const logBtn = document.getElementById('tabLoginBtn');
-            const submitBtn = document.getElementById('authSubmitBtn');
-            const errorMsg = document.getElementById('authErrorMsg');
-            const avatarField = document.getElementById('avatarSelectField');
-
-            if (errorMsg) errorMsg.classList.add('hidden');
-
-            if (mode === 'register') {
-                regBtn.className = 'text-base font-bold text-brand-600 dark:text-brand-400 border-b-2 border-brand-600 pb-1 transition-all';
-                logBtn.className = 'text-base font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 pb-1 transition-all';
-                submitBtn.textContent = 'Зарегистрироваться';
-                if (avatarField) avatarField.classList.remove('hidden');
-            } else {
-                logBtn.className = 'text-base font-bold text-brand-600 dark:text-brand-400 border-b-2 border-brand-600 pb-1 transition-all';
-                regBtn.className = 'text-base font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 pb-1 transition-all';
-                submitBtn.textContent = 'Войти';
-                if (avatarField) avatarField.classList.add('hidden');
-            }
-            window.generateCaptcha();
-        };
-
-        window.handleRegAvatarUpload = function(event) {
-            const files = event.target.files;
-            if (!files || files.length === 0) return;
-
-            const file = files[0];
-            const reader = new FileReader();
-
-            reader.onload = function(e) {
-                customUploadedAvatar = e.target.result;
-                const preview = document.getElementById('avatarPreview');
-                if (preview) preview.src = customUploadedAvatar;
-                window.showToast('Аватарка загружена!');
-            };
-
-            reader.readAsDataURL(file);
-        };
-
-        window.handleSettingsAvatarChange = function(event) {
-            const files = event.target.files;
-            if (!files || files.length === 0) return;
-
-            const file = files[0];
-            const reader = new FileReader();
-
-            reader.onload = function(e) {
-                const newAvatar = e.target.result;
-                if (currentUser) {
-                    currentUser.avatar = newAvatar;
-
-                    if (registeredUsers[currentUser.name]) {
-                        if (typeof registeredUsers[currentUser.name] === 'object') {
-                            registeredUsers[currentUser.name].avatar = newAvatar;
-                        }
-                    }
-
-                    // Update UI elements
-                    const settingsAvatar = document.getElementById('settingsUserAvatar');
-                    if (settingsAvatar) settingsAvatar.src = newAvatar;
-
-                    const sidebarAvatar = document.getElementById('userSidebarAvatar');
-                    if (sidebarAvatar) sidebarAvatar.src = newAvatar;
-
-                    window.showToast('Аватар профиля обновлен!');
-
-                    // Backend API Hook: Send avatar update to Python server (Render.com)
-                    window.BackendAPI.updateUserAvatar(currentUser.id, newAvatar);
-                }
-            };
-
-            reader.readAsDataURL(file);
-        };
-
-        window.toggleAuthModal = function(show) {
-            const modal = document.getElementById('googleAuthModal');
-            if (show) {
-                modal.classList.remove('hidden');
-                window.generateCaptcha();
-            } else {
-                modal.classList.add('hidden');
-            }
-        };
-
-        window.handleAuthSubmit = function(e) {
-            e.preventDefault();
-
-            const username = document.getElementById('authUsername').value.trim();
-            const password = document.getElementById('authPassword').value;
-            const captchaInput = document.getElementById('authCaptchaInput').value.trim();
-            const errorMsg = document.getElementById('authErrorMsg');
-
-            function showError(msg) {
-                errorMsg.textContent = msg;
-                errorMsg.classList.remove('hidden');
-                window.generateCaptcha();
-            }
-
-            // 1. Validate Captcha
-            if (captchaInput.toLowerCase() !== currentCaptchaCode.toLowerCase()) {
-                showError('Неверный код капчи! Попробуйте снова.');
-                return;
-            }
-
-            // 2. Validate Password Rules
-            // - Min 5 characters
-            if (password.length < 5) {
-                showError('Пароль должен содержать минимум 5 символов.');
-                return;
-            }
-
-            // - Must contain digits
-            if (!/\d/.test(password)) {
-                showError('Пароль должен содержать хотя бы одну цифру.');
-                return;
-            }
-
-            // - Letters ONLY Latin (no Cyrillic or other non-Latin alphabets)
-            const latinOnlyRegex = /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/;
-            if (!latinOnlyRegex.test(password)) {
-                showError('Пароль должен содержать только латинские буквы и цифры.');
-                return;
-            }
-
-            if (authMode === 'register') {
-                if (registeredUsers[username]) {
-                    showError('Пользователь с таким именем уже зарегистрирован!');
-                    return;
-                }
-
-                const userAvatar = customUploadedAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`;
-
-                // Register user
-                registeredUsers[username] = {
-                    password: password,
-                    avatar: userAvatar
-                };
-
-                currentUser = {
-                    name: username,
-                    email: username.toLowerCase() + '@nexus.chat',
-                    avatar: userAvatar,
-                    id: 'user_' + Date.now()
-                };
-
-                window.showToast(`Регистрация успешна! Добро пожаловать, ${username}`);
-            } else {
-                // Login
-                const userData = registeredUsers[username];
-                if (!userData || (typeof userData === 'string' ? userData !== password : userData.password !== password)) {
-                    showError('Неверное имя пользователя или пароль!');
-                    return;
-                }
-
-                const userAvatar = typeof userData === 'object' && userData.avatar ? userData.avatar : `https://api.dicebear.com/7.x/bottts/svg?seed=${username}`;
-
-                currentUser = {
-                    name: username,
-                    email: username.toLowerCase() + '@nexus.chat',
-                    avatar: userAvatar,
-                    id: 'user_' + Date.now()
-                };
-
-                window.showToast(`Вы успешно вошли как ${username}`);
-            }
-
-            // Update UI
-            document.getElementById('userSidebarAvatar').src = currentUser.avatar;
-            window.toggleAuthModal(false);
-
-            // Backend API Sync
-            window.BackendAPI.onUserAuth(currentUser, authMode);
-
-            // Reset form
-            document.getElementById('customAuthForm').reset();
-            customUploadedAvatar = null;
-            const preview = document.getElementById('avatarPreview');
-            if (preview) preview.src = 'https://api.dicebear.com/7.x/bottts/svg?seed=default';
-            errorMsg.classList.add('hidden');
-        };
-
-        window.signOutGoogle = function() {
-            currentUser = null;
-            document.getElementById('settingsModal').classList.add('hidden');
-            window.toggleAuthModal(true);
-            window.showToast('Вы вышли из аккаунта');
-        };
-
-        window.toggleAuthOrSettings = function() {
-            if (currentUser) {
-                document.getElementById('settingsUserAvatar').src = currentUser.avatar;
-                document.getElementById('settingsUserName').textContent = currentUser.name;
-                document.getElementById('settingsUserEmail').textContent = currentUser.email;
-                document.getElementById('settingsModal').classList.remove('hidden');
-            } else {
-                window.toggleAuthModal(true);
-            }
-        };
-
-        window.toggleSettingsModal = function() {
-            document.getElementById('settingsModal').classList.toggle('hidden');
-        };
-
-        function selectChat(id) {
-            activeChatId = id;
-            const chat = chats.find(c => c.id === id);
-            if (chat) chat.unread = 0;
+            // Header info
+            document.getElementById('header-name').innerText = chat.username;
+            document.getElementById('header-status-text').innerText = 'В сети';
             
-            renderChatList();
-            renderActiveChat();
+            const initials = chat.username.substring(0, 1).toUpperCase();
+            const avatarEl = document.getElementById('header-avatar');
+            avatarEl.className = `w-10 h-10 rounded-full bg-gradient-to-tr ${chat.avatar || 'from-indigo-500 to-purple-500'} flex items-center justify-center font-bold text-white shadow-md`;
+            avatarEl.innerText = initials;
+
+            // Details panel info
+            document.getElementById('details-name').innerText = chat.username;
+            const detailsAvatar = document.getElementById('details-avatar');
+            detailsAvatar.className = `w-20 h-20 rounded-full bg-gradient-to-tr ${chat.avatar || 'from-indigo-500 to-purple-500'} mx-auto flex items-center justify-center font-bold text-2xl text-white shadow-xl mb-3`;
+            detailsAvatar.innerText = initials;
+
+            // Render Messages
+            const container = document.getElementById('messages-container');
+            container.innerHTML = '';
+
+            if (chat.messages.length === 0) {
+                container.innerHTML = `
+                    <div class="h-full flex items-center justify-center text-slate-500 text-xs">
+                        Начните разговор с ${chat.username}! 👋
+                    </div>
+                `;
+                return;
+            }
+
+            chat.messages.forEach(msg => {
+                const isMe = msg.sender === state.currentUser.username;
+                const msgNode = document.createElement('div');
+                msgNode.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-fade-in`;
+
+                msgNode.innerHTML = `
+                    <div class="max-w-[80%] md:max-w-[65%] rounded-2xl px-4 py-2.5 text-xs shadow-sm relative group ${
+                        isMe 
+                        ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-br-none' 
+                        : 'bg-slate-800/90 text-slate-100 rounded-bl-none border border-slate-700/50'
+                    }">
+                        <p class="leading-relaxed break-words">${msg.text}</p>
+                        <div class="flex items-center justify-end space-x-1 mt-1 text-[9px] ${isMe ? 'text-indigo-200' : 'text-slate-400'}">
+                            <span>${msg.timestamp || ''}</span>
+                            ${isMe ? '<i class="fa-solid fa-check-double text-[10px]"></i>' : ''}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(msgNode);
+            });
+
+            container.scrollTop = container.scrollHeight;
         }
 
-        window.handleSendMessage = function(e) {
-            if (e) e.preventDefault();
-            const input = document.getElementById('messageInput');
-            const text = input.value.trim();
-            if (!text) return;
+        // --- FIND USER MODAL SEARCH ---
+        async function handleFindUser(e) {
+            e.preventDefault();
+            const input = document.getElementById('find-username-input');
+            const resultBox = document.getElementById('find-user-result');
+            const targetUsername = input.value.trim();
 
-            const chat = chats.find(c => c.id === activeChatId);
-            if (!chat) return;
+            if (!targetUsername) return;
 
-            const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-            chat.messages.push({
-                id: Date.now(),
-                sender: 'me',
-                text: text,
-                time: timeNow,
-                type: 'text'
-            });
-
-            // Send via Backend API / WebSocket to Python backend
-            window.BackendAPI.sendMessage({
-                chatId: activeChatId,
-                senderId: currentUser ? currentUser.id : 'guest',
-                text: text,
-                time: timeNow
-            });
-
-            input.value = '';
-            renderChatList();
-            renderActiveChat();
-
-            /* Бот-автоответчик отключен для полноценного Python бэкенда */
-        };
-
-        window.toggleEmojiPicker = function(e) {
-            if (e) e.stopPropagation();
-            const picker = document.getElementById('emojiPicker');
-            picker.classList.toggle('hidden');
-        };
-
-        window.handleAttachFile = function() {
-            const fileInput = document.getElementById('chatFileInput');
-            if (fileInput) {
-                fileInput.value = '';
-                fileInput.click();
+            if (targetUsername === state.currentUser.username) {
+                showToast('Нельзя начать чат с самим собой', 'error');
+                return;
             }
-        };
 
-        window.handleFileSelected = function(event) {
-            const files = event.target.files;
-            if (!files || files.length === 0) return;
-
-            const chat = chats.find(c => c.id === activeChatId);
-            if (!chat) return;
-
-            const file = files[0];
-            const reader = new FileReader();
-            const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-            reader.onload = function(e) {
-                const fileUrl = e.target.result;
-                const isImage = file.type.startsWith('image/');
-                
-                const sizeKB = (file.size / 1024).toFixed(1);
-                const sizeStr = sizeKB > 1024 ? (sizeKB / 1024).toFixed(1) + ' MB' : sizeKB + ' KB';
-
-                if (isImage) {
-                    chat.messages.push({
-                        id: Date.now(),
-                        sender: 'me',
-                        text: file.name,
-                        mediaUrl: fileUrl,
-                        time: timeNow,
-                        type: 'image'
-                    });
+            try {
+                const res = await fetch(`/api/check_user/${encodeURIComponent(targetUsername)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.exists) {
+                        openChatWithUser(data.user.username, data.user.avatar);
+                        showToast(`Пользователь ${data.user.username} найден!`, 'success');
+                    }
                 } else {
-                    chat.messages.push({
-                        id: Date.now(),
-                        sender: 'me',
-                        fileName: file.name,
-                        fileSize: sizeStr,
-                        mediaUrl: fileUrl,
-                        text: '',
-                        time: timeNow,
-                        type: 'file'
-                    });
+                    // If not found in server DB or working in offline mode
+                    openChatWithUser(targetUsername, 'from-amber-500 to-orange-600');
+                    showToast(`Чат с "${targetUsername}" создан!`, 'success');
                 }
+            } catch(e) {
+                // Offline fallback
+                openChatWithUser(targetUsername, 'from-amber-500 to-orange-600');
+            }
+        }
 
-                renderChatList();
+        // --- UI HELPERS ---
+        function filterChats() {
+            state.searchQuery = document.getElementById('search-input').value;
+            renderChatList();
+        }
+
+        function setTab(tab) {
+            state.activeTab = tab;
+            document.getElementById('tab-all').className = tab === 'all' ? 'px-3 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-400 font-semibold transition' : 'px-3 py-1.5 rounded-lg hover:bg-slate-800 transition';
+            document.getElementById('tab-active').className = tab === 'active' ? 'px-3 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-400 font-semibold transition' : 'px-3 py-1.5 rounded-lg hover:bg-slate-800 transition';
+        }
+
+        function toggleMobileSidebar() {
+            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+            document.getElementById('sidebar-backdrop').classList.toggle('hidden');
+        }
+
+        function toggleChatDetails() {
+            document.getElementById('details-panel').classList.toggle('hidden');
+        }
+
+        function openNewChatModal() {
+            document.getElementById('modal-new-chat').classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function toggleEmojiPicker() {
+            document.getElementById('emoji-picker').classList.toggle('hidden');
+        }
+
+        function insertEmoji(emoji) {
+            const input = document.getElementById('message-input');
+            input.value += emoji;
+            toggleEmojiPicker();
+            input.focus();
+        }
+
+        function clearChatHistory() {
+            if (!state.activeChatUser) return;
+            const chat = state.chats.find(c => c.username === state.activeChatUser);
+            if (chat) {
+                chat.messages = [];
+                saveContacts();
                 renderActiveChat();
-                window.showToast(`Прикреплен файл: ${file.name}`);
-            };
-
-            reader.readAsDataURL(file);
-        };
-
-        window.recordVoiceNote = function() {
-            window.showToast('Запись голосового сообщения...');
-        };
-
-        window.startCall = function(type) {
-            const chat = chats.find(c => c.id === activeChatId);
-            if (!chat) return;
-
-            document.getElementById('callAvatar').src = chat.avatar;
-            document.getElementById('callName').textContent = chat.name;
-            document.getElementById('callTypeStatus').textContent = type === 'video' ? 'Видеовызов...' : 'Аудиовызов...';
-            document.getElementById('callModal').classList.remove('hidden');
-        };
-
-        window.endCall = function() {
-            document.getElementById('callModal').classList.add('hidden');
-            window.showToast('Звонок завершен');
-        };
-
-        window.toggleInfoSidebar = function() {
-            const sidebar = document.getElementById('infoSidebar');
-            sidebar.classList.toggle('hidden');
-            sidebar.classList.toggle('flex');
-        };
-
-        window.openNewChatModal = function() {
-            document.getElementById('newChatModal').classList.remove('hidden');
-        };
-
-        window.closeNewChatModal = function() {
-            document.getElementById('newChatModal').classList.add('hidden');
-        };
-
-        window.createNewChat = async function() {
-            const name = document.getElementById('newChatNameInput').value.trim();
-            const type = document.getElementById('newChatTypeSelect').value;
-
-            if (!name) {
-                window.showToast('Введите имя пользователя или название чата');
-                return;
+                renderChatList();
+                showToast('История очищена', 'info');
             }
+        }
 
-            // Проверка авторизации
-            if (!currentUser) {
-                window.showToast('Сначала войдите в аккаунт!');
-                window.toggleAuthModal(true);
-                return;
-            }
+        function startCall(type) {
+            if (!state.activeChatUser) return;
+            document.getElementById('call-name').innerText = state.activeChatUser;
+            document.getElementById('call-avatar').innerText = state.activeChatUser.charAt(0).toUpperCase();
+            document.getElementById('modal-call').classList.remove('hidden');
+        }
 
-            // Нельзя создать чат с самим собой
-            if (name.toLowerCase() === currentUser.name.toLowerCase()) {
-                window.showToast('Нельзя создать чат с самим собой');
-                return;
-            }
+        function endCall() {
+            document.getElementById('modal-call').classList.add('hidden');
+            showToast('Звонок завершен', 'info');
+        }
 
-            // Для личных чатов: проверяем, существует ли такой человек в базе
-            if (type === 'direct') {
-                const registeredUser = registeredUsers[name];
-                const backendUserExists = window.BackendAPI.checkUserExists ? await window.BackendAPI.checkUserExists(name) : false;
-
-                if (!registeredUser && !backendUserExists) {
-                    window.showToast(`Ошибка: Пользователь "${name}" не зарегистрирован!`);
-                    return;
-                }
-            }
-
-            // Получаем аватар найденного пользователя
-            const targetUser = registeredUsers[name];
-            const avatarUrl = (targetUser && targetUser.avatar) 
-                ? targetUser.avatar 
-                : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80';
-
-            const newChat = {
-                id: 'chat_' + Date.now(),
-                name: name,
-                type: type,
-                avatar: avatarUrl,
-                status: 'В сети',
-                role: type === 'direct' ? 'Пользователь' : 'Участник',
-                bio: type === 'direct' ? 'Пользователь NexusChat' : 'Групповой чат',
-                handle: '@' + name.toLowerCase().replace(/\s+/g, '_'),
-                unread: 0,
-                online: true,
-                messages: []
-            };
-
-            chats.unshift(newChat);
-            selectChat(newChat.id);
-            window.closeNewChatModal();
-            document.getElementById('newChatNameInput').value = '';
-            window.showToast('Чат успешно создан');
-
-            // Синхронизация с Python Бэкендом
-            window.BackendAPI.createChat(newChat);
-        };
-
-        window.showToast = function(msg) {
-            const container = document.getElementById('toastContainer');
-            if (!container) return;
-
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-            toast.className = 'pointer-events-auto px-4 py-2.5 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-semibold shadow-xl flex items-center space-x-2 transition-all duration-300 transform translate-y-2 opacity-0';
-            toast.innerHTML = `<i class="fa-solid fa-circle-info text-brand-500"></i><span>${msg}</span>`;
-
+            toast.className = `px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold text-white flex items-center space-x-2 animate-fade-in pointer-events-auto ${
+                type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-rose-600' : 'bg-indigo-600'
+            }`;
+            toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : 'fa-circle-info'}"></i> <span>${msg}</span>`;
             container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
 
-            setTimeout(() => {
-                toast.classList.remove('translate-y-2', 'opacity-0');
-            }, 50);
-
-            setTimeout(() => {
-                toast.classList.add('opacity-0', 'translate-y-2');
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
-        };
-
-        // Настройка готового взаимодействия с Python бэкендом (FastAPI / Flask / WebSockets)
-        window.BackendAPI = {
-            baseUrl: "https://your-python-backend.onrender.com", // Укажите URL вашего сервера на Render.com
-            wsUrl: "wss://your-python-backend.onrender.com/ws",
-            socket: null,
-
-            initWebSocket: function() {
-                /*
-                // Код подключения WebSockets для реального времени:
+        // --- APP INITIALIZATION ---
+        window.onload = function() {
+            const savedUser = localStorage.getItem('nexus_user');
+            if (savedUser) {
                 try {
-                    this.socket = new WebSocket(this.wsUrl);
-                    
-                    this.socket.onopen = () => console.log("[Python WS] Подключено");
-                    
-                    this.socket.onmessage = (event) => {
-                        const data = JSON.parse(event.data);
-                        if (data.type === 'NEW_MESSAGE') {
-                            const chat = chats.find(c => c.id === data.chatId);
-                            if (chat) {
-                                chat.messages.push(data.message);
-                                renderChatList();
-                                if (activeChatId === chat.id) renderActiveChat();
-                            }
-                        }
-                    };
-
-                    this.socket.onclose = () => {
-                        setTimeout(() => this.initWebSocket(), 3000); // Реконнект
-                    };
+                    const user = JSON.parse(savedUser);
+                    onAuthSuccess(user);
                 } catch(e) {
-                    console.error("WS Error:", e);
+                    document.getElementById('auth-overlay').classList.remove('hidden');
                 }
-                */
-            },
-
-            checkUserExists: async function(username) {
-                console.log(`[Python API] Проверка наличия пользователя: ${username}`);
-                /*
-                try {
-                    const response = await fetch(`${this.baseUrl}/api/users/check?username=${encodeURIComponent(username)}`);
-                    const data = await response.json();
-                    return data.exists;
-                } catch (e) {
-                    console.error("Backend check user error", e);
-                    return false;
-                }
-                */
-                return false;
-            },
-
-            createChat: async function(chatData) {
-                console.log(`[Python API] Создание нового чата:`, chatData);
-                /*
-                try {
-                    await fetch(`${this.baseUrl}/api/chats`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(chatData)
-                    });
-                } catch(e) {
-                    console.error("Create chat error", e);
-                }
-                */
-            },
-
-            onUserAuth: async function(user, mode) {
-                console.log(`[Python API] Авторизация (${mode}):`, user);
-                /*
-                try {
-                    await fetch(`${this.baseUrl}/api/auth/${mode}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(user)
-                    });
-                } catch (e) {
-                    console.error("Backend auth error", e);
-                }
-                */
-            },
-
-            updateUserAvatar: async function(userId, avatarBase64) {
-                console.log(`[Python API] Обновление аватара пользователя: ${userId}`);
-                /*
-                try {
-                    await fetch(`${this.baseUrl}/api/users/avatar`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId, avatar: avatarBase64 })
-                    });
-                } catch(e) {
-                    console.error("Avatar update error", e);
-                }
-                */
-            },
-
-            sendMessage: async function(msgData) {
-                console.log(`[Python API] Отправка сообщения:`, msgData);
-                /*
-                if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-                    this.socket.send(JSON.stringify({ type: 'SEND_MESSAGE', ...msgData }));
-                } else {
-                    await fetch(`${this.baseUrl}/api/messages`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(msgData)
-                    });
-                }
-                */
+            } else {
+                document.getElementById('auth-overlay').classList.remove('hidden');
             }
         };
-
-        document.addEventListener('DOMContentLoaded', () => {
-            renderChatList();
-            renderActiveChat();
-            window.generateCaptcha();
-            window.toggleAuthModal(true);
-            window.BackendAPI.initWebSocket();
-
-            // Filter Tabs
-            document.querySelectorAll('.filter-tab').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    document.querySelectorAll('.filter-tab').forEach(b => {
-                        b.classList.remove('bg-brand-600', 'text-white');
-                        b.classList.add('bg-gray-200', 'dark:bg-slate-800', 'text-gray-600', 'dark:text-gray-400');
-                    });
-                    e.target.classList.add('bg-brand-600', 'text-white');
-                    e.target.classList.remove('bg-gray-200', 'dark:bg-slate-800', 'text-gray-600', 'dark:text-gray-400');
-
-                    activeFilter = e.target.getAttribute('data-filter');
-                    renderChatList();
-                });
-            });
-
-            // Search Filter
-            document.getElementById('chatSearchInput')?.addEventListener('input', renderChatList);
-
-            // Theme Toggle
-            document.getElementById('themeToggleBtn')?.addEventListener('click', () => {
-                document.documentElement.classList.toggle('dark');
-                const isDark = document.documentElement.classList.contains('dark');
-                document.getElementById('themeIcon').className = isDark ? 'fa-solid fa-sun text-lg' : 'fa-solid fa-moon text-lg text-slate-700';
-            });
-
-            // Close emoji picker on click outside
-            document.addEventListener('click', (e) => {
-                const picker = document.getElementById('emojiPicker');
-                const toggleBtn = document.getElementById('toggleEmojiBtn');
-                if (picker && !picker.contains(e.target) && !toggleBtn.contains(e.target)) {
-                    picker.classList.add('hidden');
-                }
-            });
-        });
     </script>
 </body>
 </html>
